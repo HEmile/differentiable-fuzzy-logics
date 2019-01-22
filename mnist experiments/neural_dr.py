@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from misc import one_hot, cross_prod
 import numpy as np
-from neural_config import balance_classes
+from neural_config import balance_classes, use_logit_inputs
 
 class NeuralDR(nn.Module):
     def __init__(self, hidden):
@@ -19,6 +19,16 @@ class NeuralDR(nn.Module):
         #ss (symmetry)
         self.fcss1 = nn.Linear(2, hidden)
         self.fcss2 = nn.Linear(hidden, 1)
+
+    def forward_1(self, x):
+        dr1 = self.fcdsd1(x)
+        dr1 = F.relu(dr1)
+        return self.fcdsd2(dr1)
+
+    def forward_2(self, x):
+        dr1 = self.fcss1(x)
+        dr1 = F.relu(dr1)
+        return self.fcss2(dr1)
 
     def set_requires_grad(self, val):
         for p in self.parameters():
@@ -42,14 +52,12 @@ class NeuralDR(nn.Module):
 
             # digit(x) & same(x, y) -> digit(y)
             examples, labels = self.dataset_dsd(p1, p2, psamer)
-            dr2 = self.fcdsd1(examples)
-            dr2 = self.fcdsd2(dr2)
+            dr2 = self.forward_1(examples)
             dr2 = torch.nn.BCEWithLogitsLoss()(dr2.squeeze(), labels)
 
             # same(x, y) <-> same(y, x)
             examples, labels = self.dataset_ss(psame, result)
-            dr3 = self.fcss1(examples)
-            dr3 = self.fcss2(dr3)
+            dr3 = self.forward_2(examples)
             dr3 = torch.nn.BCEWithLogitsLoss()(dr3.squeeze(), labels)
 
             # print(examples[:12], torch.sigmoid(dr2)[:12], labels[:12], examples[-12:], torch.sigmoid(dr2)[-12:], labels[-12:])
@@ -59,17 +67,14 @@ class NeuralDR(nn.Module):
             self.set_requires_grad(False)
 
             positive_examples = torch.stack([p1, psamer, p2], dim=2).view(-1, 3)
-            dr2 = self.fcdsd1(positive_examples)
-            dr2 = self.fcdsd2(dr2)
-
+            dr2 = self.forward_1(positive_examples)
             dr2 = torch.nn.BCEWithLogitsLoss()(dr2.squeeze(), dr2.new_ones(positive_examples.size()[0]))
 
             n = int(np.sqrt(psame.size()[0]))
             a = psame.squeeze(1)
             c = psame.squeeze(1).view(n, n).transpose(0, 1).contiguous().view(n * n)
             positive_examples = torch.stack([a, c], dim=1).view(-1, 2)
-            dr3 = self.fcss1(positive_examples)
-            dr3 = self.fcss2(dr3)
+            dr3 = self.forward_2(positive_examples)
             dr3 = torch.nn.BCEWithLogitsLoss()(dr3.squeeze(), dr3.new_ones(positive_examples.size()[0]))
             self.set_requires_grad(True)
             return dr2 + dr3
@@ -135,8 +140,7 @@ class NeuralDR(nn.Module):
 
     def get_test_graph(self, device, experiment_name, step):
         x = cross_prod(torch.linspace(-1., 1., steps=50)).to(device)
-        dr3 = self.fcss1(x)
-        dr3 = self.fcss2(dr3)
+        dr3 = self.forward_2(x)
         outp = torch.sigmoid(dr3).view(50, 50).cpu().numpy()
         np.savetxt('graphs/' + experiment_name + str(step) + '.csv', outp, delimiter=',')
 
@@ -165,15 +169,26 @@ class MultiNeuralDR(nn.Module):
         for p in self.parameters():
             p.requires_grad = val
 
-    def forward(self, result, writer, step, training):
-        logits1 = result['logits_1']
-        logits2 = result['logits_2']
-        logits_same = result['logits_same']
+    def forward_1(self, x):
+        dr1 = self.fcdsd1(x)
+        dr1 = F.relu(dr1)
+        return self.fcdsd2(dr1)
 
-        # Normalize between -1 and 1
-        p1 = 2 * F.softmax(logits1, dim=-1) - 1
-        p2 = 2 * F.softmax(logits2, dim=-1) - 1
-        psame = 2 * torch.sigmoid(logits_same) - 1
+    def forward_2(self, x):
+        dr1 = self.fcss1(x)
+        dr1 = F.relu(dr1)
+        return self.fcss2(dr1)
+
+    def forward(self, result, writer, step, training):
+        p1 = result['logits_1']
+        p2 = result['logits_2']
+        psame = result['logits_same']
+
+        if not use_logit_inputs:
+            # Normalize between -1 and 1
+            p1 = 2 * F.softmax(p1, dim=-1) - 1
+            p2 = 2 * F.softmax(p2, dim=-1) - 1
+            psame = 2 * torch.sigmoid(psame) - 1
         psamer = psame.repeat(1, 10)
 
         if training:
@@ -183,14 +198,12 @@ class MultiNeuralDR(nn.Module):
 
             # digit(x) & same(x, y) -> digit(y)
             examples, labels = self.dataset_dsd(p1, p2, psamer, result)
-            dr2 = self.fcdsd1(examples)
-            dr2 = self.fcdsd2(dr2)
+            dr2 = self.forward_1(examples)
             dr2 = torch.nn.CrossEntropyLoss()(dr2.squeeze(), labels)
 
             # same(x, y) <-> same(y, x)
             examples, labels = self.dataset_ss(psame, result)
-            dr3 = self.fcss1(examples)
-            dr3 = self.fcss2(dr3)
+            dr3 = self.forward_2(examples)
             dr3 = torch.nn.CrossEntropyLoss()(dr3.squeeze(), labels)
 
             # print(examples[:12], torch.sigmoid(dr2)[:12], labels[:12], examples[-12:], torch.sigmoid(dr2)[-12:], labels[-12:])
@@ -200,8 +213,7 @@ class MultiNeuralDR(nn.Module):
             self.set_requires_grad(False)
 
             positive_examples = torch.stack([p1, psamer, p2], dim=2).view(-1, 3)
-            dr2 = self.fcdsd1(positive_examples)
-            dr2 = self.fcdsd2(dr2)
+            dr2 = self.forward_1(positive_examples)
 
             # Feed the highest class as the label
             dr2 = torch.nn.CrossEntropyLoss()(dr2.squeeze(), torch.argmax(dr2, dim=1))
@@ -210,8 +222,7 @@ class MultiNeuralDR(nn.Module):
             a = psame.squeeze(1)
             c = psame.squeeze(1).view(n, n).transpose(0, 1).contiguous().view(n * n)
             positive_examples = torch.stack([a, c], dim=1).view(-1, 2)
-            dr3 = self.fcss1(positive_examples)
-            dr3 = self.fcss2(dr3)
+            dr3 = self.forward_2(positive_examples)
             dr3 = torch.nn.CrossEntropyLoss()(dr3.squeeze(), torch.argmax(dr3, dim=1))
             self.set_requires_grad(True)
             return dr2 + dr3
@@ -266,8 +277,7 @@ class MultiNeuralDR(nn.Module):
 
     def get_test_graph(self, device, experiment_name, step):
         x = cross_prod(torch.linspace(-1., 1., steps=50)).to(device)
-        dr3 = self.fcss1(x)
-        dr3 = self.fcss2(dr3)
+        dr3 = self.forward_2(x)
         outp = torch.argmax(dr3, dim=1).view(50, 50).cpu().numpy()
         probs = torch.nn.functional.softmax(dr3, dim=1).view(50, 50, -1).cpu().numpy()
         np.savetxt('graphs/' + experiment_name +'classes'+ str(step) + '.csv', outp, delimiter=',')
