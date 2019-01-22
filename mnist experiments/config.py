@@ -1,28 +1,114 @@
 import torch
 import torch.nn.functional as F
 import math
+from argparse import ArgumentParser
 
-test_every_x_epoch = 50
+
+class Config(object):
+    def __init__(self):
+        self.t = None
+        self.i = None
+        self.a_quant = None
+        self.rl_weight = None
+        self.same_weight = None
+        self.epochs = None
+        self.name = None
+        self.p = None
+        self.s = None
+        self.b0 = None
+
+        self.parser = self.setup_parser()
+        self.args = vars(self.parser.parse_args())
+        self.__dict__.update(self.args)
+        self.epochs += 1
+
+        self.experiment_name = 'split_100/-n {}: -t {} -i {} -a {}'.format(self.name, self.t, self.i, self.a_quant)
+        self.experiment_name += '-rlw {} samew {}'.format(str(self.rl_weight), str(self.same_weight))
+        self.experiment_name += ' -s {} b0 {} p {}'.format(str(self.s), str(self.b0), str(self.p))
+
+        print(self.experiment_name)
+
+        print("~~~~~~~~ Hyperparameters used: ~~~~~~~")
+        for x, y in self.args.items():
+            print("{} : {}".format(x, y))
+
+    def setup_parser(self):
+        parser = ArgumentParser(description='training code')
+
+        parser.add_argument('-t', dest='t', type=str, default='Y')
+        parser.add_argument('-i', dest='i', type=str, default='SP')
+        parser.add_argument('-a', dest='a_quant', type=str, default='cross_entropy')
+        parser.add_argument('-rlw', dest='rl_weight', type=float, default=10.0)
+        parser.add_argument('-samew', dest='same_weight', type=float, default=1.0)
+        parser.add_argument('-epochs', dest='epochs', type=int, default=50000)
+        parser.add_argument('-n', dest='name', type=str, default='')
+        parser.add_argument('-p', dest='p', type=float, default=2.0)
+        parser.add_argument('-s', dest='s', type=float, default=9.0)
+        parser.add_argument('-b0', dest='b0', type=float, default=-0.5)
+
+        return parser
+
+    def choose_operators(self):
+        self.T = CONJUNCTS[self.t]
+        self.I = IMPLICATIONS[self.i]
+        self.A_quant = AGGREGATORS[self.a_quant]
+
+
+conf = Config()
+
+test_every_x_epoch = 1000
 eps = 0.000001
 
-# Aggregators
-A_sum = lambda a: torch.sum(a)
-A_cross_entropy = lambda a: torch.mean(torch.log(a + eps))
-A_mean = lambda a: torch.mean(a) - 1
-A_log_sigmoid = lambda a: F.logsigmoid(pa * (torch.sum(a) - a.size()[0] + 1 + pb0))
-A_RMSE = lambda a: 1 - torch.sqrt(torch.mean((1 - a)**2.0) + eps) # Unclamped Yager/sum of squares
-A_min = lambda a: torch.min(a)
+p_yager = conf.p
+ap = p_yager
 
+AGGREGATORS = {}
+CONJUNCTS = {}
+DISJUNCTS = {}
+IMPLICATIONS = {}
+
+# Aggregators
+AGGREGATORS['sum'] = lambda a: torch.sum(a)
+AGGREGATORS['cross_entropy'] = lambda a: torch.mean(torch.log(a + eps))
+AGGREGATORS['mean'] = lambda a: torch.mean(a) - 1
+AGGREGATORS['log_sigmoid'] = lambda a: F.logsigmoid(pa * (torch.sum(a) - a.size()[0] + 1 + pb0))
+AGGREGATORS['RMSE'] = lambda a: 1 - torch.sqrt(torch.mean((1 - a)**2.0) + eps) # Unclamped Yager/sum of squares
+# Adding random noise to make sure it arbitrarily chooses an argument when there are multiple lowest inputs
+AGGREGATORS['min'] = lambda a: torch.min(a + torch.randn_like(a) / 1000)
+AGGREGATORS['LK'] = lambda a: torch.clamp(torch.sum(a) - a.size()[0] + 1, min=0)
+AGGREGATORS['T'] = lambda a: 2/math.pi * torch.asin(torch.prod(torch.sin(a * math.pi / 2)))
+AGGREGATORS['H'] = lambda a: 1 / (1 + torch.sum((1-a) / (a+eps)))
+AGGREGATORS['Y'] = lambda a: 1 - (torch.sum((1 - a)**ap) + eps)**(1/ap)
+
+def upper_contra(I):
+    def _implication(a, c):
+        return torch.max(I(a, c), I(1-c, 1-a))
+    return _implication
+
+def lower_contra(I):
+    def _implication(a, c):
+        return torch.min(I(a, c), I(1-c, 1-a))
+    return _implication
 
 # Normal product norm
-T_P = lambda a, b: a * b
-S_P = lambda a, b: a + b - a * b
-I_RC = lambda a, b: S_P(1 - a, b)
+CONJUNCTS['P'] = lambda a, b: a * b
+DISJUNCTS['P'] = lambda a, b: a + b - a * b
+
+IMPLICATIONS['RC'] = lambda a, b: DISJUNCTS['P'](1 - a, b)
+IMPLICATIONS['quad'] = lambda a, c: DISJUNCTS['P'](1 - a * a, 2 * c - c * c)
 
 # Godel norm
-T_G = lambda a, b: torch.min(a, b)
-S_G = lambda a, b: torch.max(a, b)
-I_KD = lambda a, b: torch.max(1-a, b)
+CONJUNCTS['G'] = lambda a, b: torch.min(a, b)
+DISJUNCTS['G'] = lambda a, b: torch.max(a, b)
+IMPLICATIONS['KD'] = lambda a, b: torch.max(1-a, b)
+def godel_i(a, c):
+    i = c
+    i[a <= c] = 1
+    return i
+
+IMPLICATIONS['G'] = godel_i
+IMPLICATIONS['uG'] = upper_contra(IMPLICATIONS['G'])
+IMPLICATIONS['lG'] = lower_contra(IMPLICATIONS['G'])
 
 # # Sigmoid norm
 # pa = 6
@@ -32,36 +118,41 @@ I_KD = lambda a, b: torch.max(1-a, b)
 # I_S = lambda a, c: F.sigmoid(pa * (1-a + c + pb0))
 
 # Yager norm
-tp = 2
-ip = 2
-T_Y = lambda a, b: torch.clamp(1 - ((1-a)**tp + (1-b)**tp + eps)**(1/tp), min=0)
-S_Y = lambda a, b: torch.clamp((a**tp + b**tp)**(1/tp), max=1)
+tp = p_yager
+ip = p_yager
+CONJUNCTS['Y'] = lambda a, b: torch.clamp(1 - ((1-a)**tp + (1-b)**tp + eps)**(1/tp), min=0)
+DISJUNCTS['Y'] = lambda a, b: torch.clamp((a**tp + b**tp + eps)**(1/tp), max=1)
 
-I_Y = lambda a, b: torch.clamp(((1-a)**ip + b**ip)**(1/ip), max=1)
-I_RMSE = lambda a, b: (1/2 * ((1-a)**ip + b**ip))**(1/ip)
+IMPLICATIONS['Y'] = lambda a, b: torch.clamp(((1-a)**ip + b**ip + eps)**(1/ip), max=1)
+IMPLICATIONS['RMSE'] = lambda a, b: (1/2 * ((1-a)**ip + b**ip + eps))**(1/ip)
 def _I_RY(a, c):
-    r = 1 - ((1 - c)**ip - (1 - a)**ip + 0.1)**(1/ip)
+    r = 1 - ((1 - c)**ip - (1 - a)**ip + eps)**(1/ip)
     r[a <= c] = 1
     if (r != r).any():
         print('nan i')
     return r
-I_RY = _I_RY
+IMPLICATIONS['RY'] = _I_RY
 
-T_RMSE = lambda a, b: 1 - (1/2 *((1-a)**tp + (1-b)**tp) + eps)**(1/tp)
+CONJUNCTS['RMSE'] = lambda a, b: 1 - (1/2 *((1-a)**tp + (1-b)**tp) + eps)**(1/tp)
 
 # Luk implications
-I_L = lambda a, c: torch.clamp(1-a+c, max=1)
+CONJUNCTS['LK'] = lambda a, b: torch.clamp(a + b - 1, min=0)
+DISJUNCTS['LK'] = lambda a, b: torch.clamp(a + b, max=1)
+IMPLICATIONS['LK'] = lambda a, c: torch.clamp(1-a+c, max=1)
 
-# Product norm implications
-I_s_imp = lambda a, c: 1 - a + a * c
-I_quad = lambda a, c: S_P(1 - a * a, 2 * c - c * c)
+# Trigonometric
+CONJUNCTS['T'] = lambda a, b: 2 / math.pi * torch.asin(eps+torch.sin(a * math.pi/2)*torch.sin(b * math.pi/2))
+DISJUNCTS['T'] = lambda a, b: 2 / math.pi * torch.acos(eps+torch.cos(a * math.pi/2)*torch.cos(b * math.pi/2))
+IMPLICATIONS['T'] = lambda a, c: DISJUNCTS['T'](1-a, c)
 
+# Hamacher
+v = 0
+CONJUNCTS['H'] = lambda a, b: a * b / (eps + v + (1 - v)*(a + b - a * b))
+DISJUNCTS['H'] = lambda a, b: (1 - (1 - v) * a * b)/(eps + 1 - (1 - v) * a * b)
+IMPLICATIONS['H'] = lambda a, c: DISJUNCTS['H'](1-a, c)
 # Sigmoidal
-pa = 9
-pb0 = -0.5
-# Product
-T_SP = lambda a, b: torch.sigmoid(pa * (a * b + pb0))
-# S_SP = lambda a, b: torch.sigmoid(pa * ((1 - a) * (1 - b) + pb0))
+pa = conf.s
+pb0 = conf.b0
 
 # General sigmoid
 def sigmoid(f):
@@ -84,25 +175,22 @@ def sigmoid(f):
         return r
     return _sigmoid
 
-T_SP = sigmoid(lambda a, b: a * b)
-S_SP = sigmoid(lambda a, b: 1 - (1-a) * (1 - b))
-I_SP = sigmoid(lambda a, b: 1 - a + a * b)
-I_SKD = sigmoid(lambda a, b: torch.max(1-a, b))
-I_SY = sigmoid(I_Y)
+CONJUNCTS['SP'] = sigmoid(lambda a, b: a * b)
+DISJUNCTS['SP'] = sigmoid(lambda a, b: 1 - (1-a) * (1 - b))
+IMPLICATIONS['SP'] = sigmoid(lambda a, b: 1 - a + a * b)
+IMPLICATIONS['SLK'] = sigmoid(IMPLICATIONS['LK'])
+IMPLICATIONS['SucLK'] = sigmoid(lambda a, b: 1-a+b)
+IMPLICATIONS['SKD'] = sigmoid(lambda a, b: torch.max(1-a, b))
+IMPLICATIONS['SY'] = sigmoid(IMPLICATIONS['Y'])
 
 def goguen(a, c):
     i = c / (a + eps)
     i[a <= c] = 1
     return i
 
-def upper_contra_goguen(a, c):
-    i1 = c/(a + eps)
-    i2 = (1-a)/(1-c + eps)
-    i = torch.max(i1, i2)
-    i[a<=c] = 1
-    return i
-I_goguen = goguen
-I_uGG = upper_contra_goguen
+IMPLICATIONS['GG'] = goguen
+IMPLICATIONS['uGG'] = upper_contra(IMPLICATIONS['GG'])
+IMPLICATIONS['lGG'] = lower_contra(IMPLICATIONS['GG'])
 
 def normalized_rc(a, c):
     t_implication = 1 - a + a * c
@@ -112,27 +200,15 @@ def normalized_rc(a, c):
     tot_dMT = torch.sum(dMT)
     return mu * c * dMP / tot_dMP + (1 - mu) * (1 - a) * dMT / tot_dMT
 
-# Choice of norm
-T = T_G
-S = S_G
-
-# Choice of implication
-I = I_KD
-
 # Choice of aggregator
-A_quant = A_min
 A_clause = lambda a, b, c: (a + b + c) / 3
 
-rl_weight = 1.
-same_weight = 1.
+conf.choose_operators()
+
 mu = 0.25
 
 # If not mentioned, the value of s is 6
-EXPERIMENT_NAME = 'split_100/full_godel'
-EXPERIMENT_NAME += '_rlw_' + str(rl_weight) + '_samew_' + str(same_weight) + '_mu_' + str(mu)
-print(EXPERIMENT_NAME)
-
 lr = 0.01
 momentum = 0.5
-log_interval = 100
-epochs = 80001
+log_interval = 500
+

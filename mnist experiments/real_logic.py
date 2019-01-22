@@ -36,6 +36,17 @@ class RealLogic(nn.Module):
                 t_name = ('/ant/' if is_ant else '/cons/')
                 truth_sub_f = truth_a if is_ant else truth_c
                 abs_grad = torch.abs(grad)
+                if torch.sum(abs_grad) > 2000:
+                    print('--------------------------------------------')
+                    print(name, torch.max(abs_grad))
+                    print(name, torch.sum(abs_grad))
+                    print(abs_grad.size())
+                    print(abs_grad > 0)
+                    print(name, abs_grad)
+                    print(I1)
+                    print(I2)
+                    print(I3)
+
                 tag = name + t_name
                 tot_grad = torch.sum(grad)
                 tot_abs_grad = torch.sum(abs_grad)
@@ -87,19 +98,21 @@ class RealLogic(nn.Module):
         A1 = self.T(p1, p2)
         C1 = psame.repeat(1,
                           10)  # Make sure we copy the tensor so that we add a separate node for the consequent for backprop
-        rl1 = self.A_quant(self.I(A1, C1))
+        I1 = self.I(A1, C1)
+        rl1 = self.A_quant(I1)
 
         # RL computation of digit(x) & same(x, y) -> digit(y)
         A2 = self.T(p1, psame)
         C2 = p2 + 0
-
-        rl2 = self.A_quant(self.I(A2, C2))
+        I2 = self.I(A2, C2)
+        rl2 = self.A_quant(I2)
 
         # RL computation of same(x, y) -> same(y, x)
         A3 = psame.squeeze(1) + 0
         C3 = psame.squeeze(1).view(n, n).transpose(0, 1).contiguous().view(n * n)
         I3 = self.I(A3, C3)
         rl3 = self.A_quant(I3)
+
 
         # RL computation of unique
         #         rl4 = torch.zeros(n)

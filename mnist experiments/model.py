@@ -130,6 +130,8 @@ class SameNet(nn.Module):
 
     def get_same_logits(self, embedding, labels):
         # Computes the concatenation of every possible combination of embeddings
+        import time
+        time1 = time.time()
         n, _ = embedding.size()
         pairs = []
         x1 = []
@@ -150,10 +152,13 @@ class SameNet(nn.Module):
         # logits_same = self.fcrel2(hidden)
 
         # Pairs the labels to find the array of targets for same
-        labels_same = []
-        for i in range(labels.size()[0]):
-            labels_same.append(labels == labels[i])
-        return logits_same, torch.cat(labels_same)
+        n2 = labels.size()[0]
+        bb = labels.new_zeros(10, n2)
+        for i in range(10):
+            bb[i, :] = labels == i
+        labels_same = bb[labels, :].view(-1)
+
+        return logits_same, labels_same.byte()
 
     def forward(self, x, labels, writer, step):
         # Forward pass through digit recognition model

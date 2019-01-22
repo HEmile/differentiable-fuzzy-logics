@@ -7,7 +7,9 @@ from dataset import unsup_loader, sup_loader, test_loader
 from model import SameNet
 from real_logic import RealLogic
 import config
+from config import conf
 from dataset_config import seed, test_batch_size
+
 
 def print_gpu_use():
     result = subprocess.check_output(
@@ -28,7 +30,7 @@ device = torch.device("cuda" if use_cuda else "cpu")
 print(device)
 
 model = SameNet().to(device)
-real_logic = RealLogic(config.A_clause, config.A_quant, config.T, config.I)
+real_logic = RealLogic(config.A_clause, conf.A_quant, conf.T, conf.I)
 
 optimizer = optim.SGD(model.parameters(), lr=config.lr, momentum=config.momentum)
 # optimizer = optim.Adam(model.parameters(), lr=config.lr)
@@ -36,8 +38,8 @@ for name, param in model.named_parameters():
     if param.requires_grad:
         print(name)
 
-writer_train = SummaryWriter("tb_runs/"+ config.EXPERIMENT_NAME + "/train")
-writer_val = SummaryWriter("tb_runs/"+ config.EXPERIMENT_NAME + "/val")
+writer_train = SummaryWriter("tb_runs/"+ conf.experiment_name + "/train")
+writer_val = SummaryWriter("tb_runs/"+ conf.experiment_name + "/val")
 
 
 def train(model, real_logic, device, sup_loader, unsup_loader, unsup_enumerator, optimizer, epoch, writer, step):
@@ -74,7 +76,7 @@ def train(model, real_logic, device, sup_loader, unsup_loader, unsup_enumerator,
         same_labels = torch.cat([labels_same_sup.new_ones(n_pos_exmps), labels_same_sup.new_zeros(n_pos_exmps)])
 
         same_loss = torch.nn.BCEWithLogitsLoss()(same_exmps, same_labels.float())
-        loss = config.rl_weight * rl_loss + sup_loss + config.same_weight * same_loss
+        loss = conf.rl_weight * rl_loss + sup_loss + conf.same_weight * same_loss
 
         loss.backward()
         optimizer.step()
@@ -153,7 +155,7 @@ def test(model, real_logic, device, test_loader, writer, step):
 unsup_enumerator = iter(unsup_loader)
 step = 0
 
-for epoch in range(config.epochs):
+for epoch in range(conf.epochs):
     unsup_enumerator, step = train(model, real_logic, device, sup_loader, unsup_loader, unsup_enumerator, optimizer,
                                    epoch, writer_train, step)
 
