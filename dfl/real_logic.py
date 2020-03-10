@@ -4,39 +4,43 @@ import torch.nn as nn
 from collections import Counter
 import torch.nn.functional as F
 import config
+from config import conf
 from misc import one_hot
 
 class RealLogic(nn.Module):
-    def __init__(self, A_clause, A_quant, T, I):
+    def __init__(self, A_clause, A_quant, T, I, G):
         super(RealLogic, self).__init__()
         self.A_clause = A_clause
         self.A_quant = A_quant
         self.T = T
         self.I = I
+        self.G = G
 
     def forward(self, result, writer, step):
         logits1 = result['logits_1']
         logits2 = result['logits_2']
         logits_rel = result['logits_same']
-        p1 = F.softmax(logits1, dim=-1)
-        p2 = F.softmax(logits2, dim=-1)
-        psame = torch.sigmoid(logits_rel)
+        p1 = self.G(F.softmax(logits1, dim=-1))
+        p2 = self.G(F.softmax(logits2, dim=-1))
+        psame = self.G(torch.sigmoid(logits_rel))
 
         n = int(np.sqrt(psame.size()[0]))
 
         d_global = Counter()
-        # Keep track of when to update the global statistics: This is after the backward hooks on ant + cons for both formulas
+        # Keep track of when to update the global statistics: This is after the backward hooks on ant + cons for the three formulas
         self.amt_backprop = 0
+        self.max_amt_backprop = 0
 
         # Computes the backward hook for monitoring
         def _hook(name, truth_a, truth_c, is_ant):
+            self.max_amt_backprop += 1
             def hook(grad):
                 grad = -grad
 
                 t_name = ('/ant/' if is_ant else '/cons/')
                 truth_sub_f = truth_a if is_ant else truth_c
                 abs_grad = torch.abs(grad)
-                if torch.sum(abs_grad) > 2000:
+                if config.DEBUG and torch.sum(abs_grad) > 2000:
                     print('--------------------------------------------')
                     print(name, torch.max(abs_grad))
                     print(name, torch.sum(abs_grad))
@@ -74,14 +78,16 @@ class RealLogic(nn.Module):
                 d_global[g_tag + 'correct_reason'] += tot_corr_reas
 
                 self.amt_backprop += 1
-                if self.amt_backprop == 4:
+                if self.amt_backprop == self.max_amt_backprop \
+                        or conf.i == 'G' and self.amt_backprop == self.max_amt_backprop / 2:
                     for s in ['/ant/', '/cons/']:
                         _tag = 'global_grad' + s
-                        writer.add_scalar(_tag + 'correct_update', d_global[_tag + 'correct_update'] /
-                                          d_global[_tag + 'absgrad'], step)
-                        writer.add_scalar(_tag + 'correct_reason', d_global[_tag + 'correct_reason'] /
-                                          d_global[_tag + 'absgrad'], step)
-                        writer.add_scalar(_tag + 'grad', d_global[_tag + 'grad'], step)
+                        if d_global[_tag + 'absgrad'] != 0:
+                            writer.add_scalar(_tag + 'correct_update', d_global[_tag + 'correct_update'] /
+                                              d_global[_tag + 'absgrad'], step)
+                            writer.add_scalar(_tag + 'correct_reason', d_global[_tag + 'correct_reason'] /
+                                              d_global[_tag + 'absgrad'], step)
+                            writer.add_scalar(_tag + 'grad', d_global[_tag + 'grad'], step)
                     writer.add_scalar('global_grad/ratio', d_global['global_grad/cons/absgrad'] /
                                       (d_global['global_grad/cons/absgrad'] + d_global['global_grad/ant/absgrad']),
                                       step)
@@ -99,20 +105,19 @@ class RealLogic(nn.Module):
         C1 = psame.repeat(1,
                           10)  # Make sure we copy the tensor so that we add a separate node for the consequent for backprop
         I1 = self.I(A1, C1)
-        rl1 = self.A_quant(I1)
+        rl1 = self.A_quant(I1) * conf.dds
 
         # RL computation of digit(x) & same(x, y) -> digit(y)
         A2 = self.T(p1, psame)
         C2 = p2 + 0
         I2 = self.I(A2, C2)
-        rl2 = self.A_quant(I2)
+        rl2 = self.A_quant(I2) * conf.dsd
 
         # RL computation of same(x, y) -> same(y, x)
         A3 = psame.squeeze(1) + 0
         C3 = psame.squeeze(1).view(n, n).transpose(0, 1).contiguous().view(n * n)
         I3 = self.I(A3, C3)
-        rl3 = self.A_quant(I3)
-
+        rl3 = self.A_quant(I3) * conf.ss
 
         # RL computation of unique
         #         rl4 = torch.zeros(n)
@@ -157,5 +162,4 @@ class RealLogic(nn.Module):
             A3.register_hook(_hook('samexy_then_sameyx', _labels_same, labels_same_t, True))
             C3.register_hook(_hook('samexy_then_sameyx', _labels_same, labels_same_t, False))
             # I3.register_hook(_hook('samexy_then_sameyx', _labels_same, labels_same_t, True))
-
         return -self.A_clause(rl1, rl2, rl3)
