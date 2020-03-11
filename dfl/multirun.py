@@ -1,6 +1,5 @@
-import config
-from main import main
-import dataset_config
+import dfl.config as config
+from dfl.main import main
 
 for i in range(3):
     config.seed = i + 7

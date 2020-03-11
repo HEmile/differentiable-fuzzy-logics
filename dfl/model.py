@@ -21,9 +21,9 @@ class Net(nn.Module):
         a3 = F.dropout(embedding, training=self.training)
         a3 = self.fc2(a3)
         if writer is not None:
-            writer.add_scalar('activations/stdev1', torch.std(a1), step)
-            writer.add_scalar('activations/stdev2', torch.std(a2), step)
-            writer.add_scalar('activations/stdev3', torch.std(a3), step)
+            writer.add_scalar("activations/stdev1", torch.std(a1), step)
+            writer.add_scalar("activations/stdev2", torch.std(a2), step)
+            writer.add_scalar("activations/stdev3", torch.std(a3), step)
         return a3, embedding
 
 
@@ -84,7 +84,7 @@ class SameNet(nn.Module):
         labels_y = labels.new_zeros(n * n)
         for i in range(n):
             logits_y_l.append(logits[i].repeat(n, 1))
-            labels_y[i * n:(i + 1) * n] = labels[i]
+            labels_y[i * n : (i + 1) * n] = labels[i]
         logits_y = torch.cat(logits_y_l)
 
         # Forward pass to same model for both labeled and unlabeled. Reuses the earlier embeddings
@@ -95,7 +95,7 @@ class SameNet(nn.Module):
             g_tot_grad = 0
             g_truth_grad = 0
             for i in range(grad.size()[1]):
-                tag = 'class_grad/' + str(i)
+                tag = "class_grad/" + str(i)
                 tensor = -grad[:, i]
                 truth = (labels == i) == (tensor > 0)
 
@@ -104,20 +104,26 @@ class SameNet(nn.Module):
                 g_tot_grad += tot_grad
                 true_grad = torch.sum(torch.abs(tensor[truth]))
                 g_truth_grad += true_grad
-                writer.add_scalar(tag + '/precision', true_grad / tot_grad, step)
-            writer.add_scalar('class_grad/global', g_tot_grad, step)
-            writer.add_scalar('class_grad/global_precision', g_truth_grad / g_tot_grad, step)
+                writer.add_scalar(tag + "/precision", true_grad / tot_grad, step)
+            writer.add_scalar("class_grad/global", g_tot_grad, step)
+            writer.add_scalar(
+                "class_grad/global_precision", g_truth_grad / g_tot_grad, step
+            )
 
         if writer:
             logits.register_hook(hook)
-            writer.add_scalar('activations/stdev_same_logits', torch.std(logits_same), step)
-            add_print_hooks(logits_same, writer, 'activations/same', step)
+            writer.add_scalar(
+                "activations/stdev_same_logits", torch.std(logits_same), step
+            )
+            add_print_hooks(logits_same, writer, "activations/same", step)
 
-        return {'logits_unpaired': logits,
-                'logits_1': logits_x,
-                'logits_2': logits_y,
-                'logits_same': logits_same,
-                'logits_same_sqz': logits_same.squeeze(1),
-                'labels_1': labels_x,
-                'labels_2': labels_y,
-                'labels_same': labels_same}
+        return {
+            "logits_unpaired": logits,
+            "logits_1": logits_x,
+            "logits_2": logits_y,
+            "logits_same": logits_same,
+            "logits_same_sqz": logits_same.squeeze(1),
+            "labels_1": labels_x,
+            "labels_2": labels_y,
+            "labels_same": labels_same,
+        }

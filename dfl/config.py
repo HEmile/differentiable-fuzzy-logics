@@ -31,31 +31,39 @@ class Config(object):
         self.reset_experiment()
 
     def setup_parser(self):
-        parser = ArgumentParser(description='training code')
+        parser = ArgumentParser(description="training code")
 
-        parser.add_argument('-t', dest='t', type=str, default='Y')
-        parser.add_argument('-i', dest='i', type=str, default='SP')
-        parser.add_argument('-a', dest='a_quant', type=str, default='cross_entropy')
-        parser.add_argument('-rlw', dest='rl_weight', type=float, default=10.)
-        parser.add_argument('-samew', dest='same_weight', type=float, default=1.0)
-        parser.add_argument('-epochs', dest='epochs', type=int, default=50000)
-        parser.add_argument('-n', dest='name', type=str, default='')
-        parser.add_argument('-tp', dest='tp', type=float, default=2.0)
-        parser.add_argument('-ip', dest='ip', type=float, default=0.5)
-        parser.add_argument('-s', dest='s', type=float, default=9.0)
-        parser.add_argument('-b0', dest='b0', type=float, default=-0.5)
-        parser.add_argument('-dds', dest='dds', type=float, default=1.0)
-        parser.add_argument('-dsd', dest='dsd', type=float, default=1.0)
-        parser.add_argument('-ss', dest='ss', type=float, default=1.0)
-        parser.add_argument('-g', dest='g', type=str, default="")
+        parser.add_argument("-t", dest="t", type=str, default="Y")
+        parser.add_argument("-i", dest="i", type=str, default="SP")
+        parser.add_argument("-a", dest="a_quant", type=str, default="cross_entropy")
+        parser.add_argument("-rlw", dest="rl_weight", type=float, default=10.0)
+        parser.add_argument("-samew", dest="same_weight", type=float, default=1.0)
+        parser.add_argument("-epochs", dest="epochs", type=int, default=50000)
+        parser.add_argument("-n", dest="name", type=str, default="")
+        parser.add_argument("-tp", dest="tp", type=float, default=2.0)
+        parser.add_argument("-ip", dest="ip", type=float, default=0.5)
+        parser.add_argument("-s", dest="s", type=float, default=9.0)
+        parser.add_argument("-b0", dest="b0", type=float, default=-0.5)
+        parser.add_argument("-dds", dest="dds", type=float, default=1.0)
+        parser.add_argument("-dsd", dest="dsd", type=float, default=1.0)
+        parser.add_argument("-ss", dest="ss", type=float, default=1.0)
+        parser.add_argument("-g", dest="g", type=str, default="")
 
         return parser
 
     def reset_experiment(self):
-        self.experiment_name = 'split_100/-n {}: -t {} -i {} -a {}'.format(self.name, self.t, self.i, self.a_quant)
-        self.experiment_name += '-rlw {} samew {}'.format(str(self.rl_weight), str(self.same_weight))
-        self.experiment_name += ' -s {} b0 {} tp {} ip {}'.format(str(self.s), str(self.b0), str(self.tp), str(self.ip))
-        self.experiment_name += '-dds {} -dsd {} -ss {}'.format(str(self.dds), str(self.dsd), str(self.ss))
+        self.experiment_name = "split_100/-n {}: -t {} -i {} -a {}".format(
+            self.name, self.t, self.i, self.a_quant
+        )
+        self.experiment_name += "-rlw {} samew {}".format(
+            str(self.rl_weight), str(self.same_weight)
+        )
+        self.experiment_name += " -s {} b0 {} tp {} ip {}".format(
+            str(self.s), str(self.b0), str(self.tp), str(self.ip)
+        )
+        self.experiment_name += "-dds {} -dsd {} -ss {}".format(
+            str(self.dds), str(self.dsd), str(self.ss)
+        )
 
         print(self.experiment_name)
 
@@ -110,19 +118,25 @@ def _agg_np(a):
 
 
 # Aggregators
-AGGREGATORS['sum'] = lambda a: torch.sum(a)
-AGGREGATORS['cross_entropy'] = lambda a: torch.mean(debug_id(torch.log(a + eps)))
-AGGREGATORS['mean'] = lambda a: debug_id(torch.mean(a) - 1.)
-AGGREGATORS['hmean'] = lambda a: torch.sqrt(torch.mean(a ** 2.) + eps)
-AGGREGATORS['log_sigmoid'] = lambda a: F.logsigmoid(pa * (torch.sum(a) - a.size()[0] + 1. + pb0))
-AGGREGATORS['RMSE'] = lambda a: 1. - torch.sqrt(torch.mean((1 - a) ** 2.0) + eps)  # Unclamped Yager/sum of squares
+AGGREGATORS["sum"] = lambda a: torch.sum(a)
+AGGREGATORS["cross_entropy"] = lambda a: torch.mean(debug_id(torch.log(a + eps)))
+AGGREGATORS["mean"] = lambda a: debug_id(torch.mean(a) - 1.0)
+AGGREGATORS["hmean"] = lambda a: torch.sqrt(torch.mean(a ** 2.0) + eps)
+AGGREGATORS["log_sigmoid"] = lambda a: F.logsigmoid(
+    pa * (torch.sum(a) - a.size()[0] + 1.0 + pb0)
+)
+AGGREGATORS["RMSE"] = lambda a: 1.0 - torch.sqrt(
+    torch.mean((1 - a) ** 2.0) + eps
+)  # Unclamped Yager/sum of squares
 # Adding random noise to make sure it arbitrarily chooses an argument when there are multiple lowest inputs
-AGGREGATORS['min'] = lambda a: torch.min(a + torch.randn_like(a) / 1000)
-AGGREGATORS['LK'] = lambda a: torch.clamp(torch.sum(a) - a.size()[0] + 1., min=0.)
-AGGREGATORS['T'] = lambda a: 2. / math.pi * torch.asin(torch.prod(torch.sin(a * math.pi / 2)))
-AGGREGATORS['H'] = lambda a: 1. / (1. + torch.sum((1. - a) / (a + eps)))
-AGGREGATORS['Y'] = lambda a: 1. - (torch.sum((1. - a) ** ap) + eps) ** (1. / ap)
-AGGREGATORS['Np'] = _agg_np
+AGGREGATORS["min"] = lambda a: torch.min(a + torch.randn_like(a) / 1000)
+AGGREGATORS["LK"] = lambda a: torch.clamp(torch.sum(a) - a.size()[0] + 1.0, min=0.0)
+AGGREGATORS["T"] = (
+    lambda a: 2.0 / math.pi * torch.asin(torch.prod(torch.sin(a * math.pi / 2)))
+)
+AGGREGATORS["H"] = lambda a: 1.0 / (1.0 + torch.sum((1.0 - a) / (a + eps)))
+AGGREGATORS["Y"] = lambda a: 1.0 - (torch.sum((1.0 - a) ** ap) + eps) ** (1.0 / ap)
+AGGREGATORS["Np"] = _agg_np
 
 
 def upper_contra(I):
@@ -146,27 +160,27 @@ def r_impl(I):
         c2 = c[a > c]
         r[a > c] = I(a2, c2)
         if DEBUG and (r != r).any():
-            print('nan i')
+            print("nan i")
         return r
 
     return _r_impl
 
 
 # Normal product norm
-CONJUNCTS['P'] = lambda a, b: a * b
-DISJUNCTS['P'] = lambda a, b: a + b - a * b
+CONJUNCTS["P"] = lambda a, b: a * b
+DISJUNCTS["P"] = lambda a, b: a + b - a * b
 
-IMPLICATIONS['RC'] = lambda a, b: DISJUNCTS['P'](1 - a, b)
-IMPLICATIONS['quad'] = lambda a, c: DISJUNCTS['P'](1 - a * a, 2 * c - c * c)
+IMPLICATIONS["RC"] = lambda a, b: DISJUNCTS["P"](1 - a, b)
+IMPLICATIONS["quad"] = lambda a, c: DISJUNCTS["P"](1 - a * a, 2 * c - c * c)
 
 # Godel norm
-CONJUNCTS['G'] = lambda a, b: torch.min(a, b)
-DISJUNCTS['G'] = lambda a, b: torch.max(a, b)
-IMPLICATIONS['KD'] = lambda a, b: torch.max(1 - a, b)
+CONJUNCTS["G"] = lambda a, b: torch.min(a, b)
+DISJUNCTS["G"] = lambda a, b: torch.max(a, b)
+IMPLICATIONS["KD"] = lambda a, b: torch.max(1 - a, b)
 
-IMPLICATIONS['G'] = r_impl(lambda a, c: c)
-IMPLICATIONS['uG'] = upper_contra(IMPLICATIONS['G'])
-IMPLICATIONS['lG'] = lower_contra(IMPLICATIONS['G'])
+IMPLICATIONS["G"] = r_impl(lambda a, c: c)
+IMPLICATIONS["uG"] = upper_contra(IMPLICATIONS["G"])
+IMPLICATIONS["lG"] = lower_contra(IMPLICATIONS["G"])
 
 
 # Nilpotent norm
@@ -179,8 +193,8 @@ def _npmin(a, b):
     return r
 
 
-CONJUNCTS['Np'] = lambda a, b: _npmin(a, b)
-IMPLICATIONS['F'] = r_impl(lambda a, c: torch.max(1 - a, c))
+CONJUNCTS["Np"] = lambda a, b: _npmin(a, b)
+IMPLICATIONS["F"] = r_impl(lambda a, c: torch.max(1 - a, c))
 
 # # Sigmoid norm
 # pa = 6
@@ -192,30 +206,48 @@ IMPLICATIONS['F'] = r_impl(lambda a, c: torch.max(1 - a, c))
 # Yager norm
 tp = p_yager
 ip = conf.ip
-CONJUNCTS['Y'] = lambda a, b: torch.clamp(1 - ((1 - a) ** tp + (1 - b) ** tp + eps) ** (1 / tp), min=0)
-DISJUNCTS['Y'] = lambda a, b: torch.clamp((a ** tp + b ** tp + eps) ** (1 / tp), max=1)
+CONJUNCTS["Y"] = lambda a, b: torch.clamp(
+    1 - ((1 - a) ** tp + (1 - b) ** tp + eps) ** (1 / tp), min=0
+)
+DISJUNCTS["Y"] = lambda a, b: torch.clamp((a ** tp + b ** tp + eps) ** (1 / tp), max=1)
 
-IMPLICATIONS['Y'] = lambda a, b: torch.clamp(((1 - a) ** ip + b ** ip + eps) ** (1 / ip), max=1)
-IMPLICATIONS['RMSE'] = lambda a, b: (1 / 2 * ((1 - a) ** ip + b ** ip + eps)) ** (1 / ip)
-IMPLICATIONS['RY'] = r_impl(lambda a, c: 1 - ((1 - c + eps) ** ip - (1 - a + eps) ** ip + eps) ** (1 / ip))
+IMPLICATIONS["Y"] = lambda a, b: torch.clamp(
+    ((1 - a) ** ip + b ** ip + eps) ** (1 / ip), max=1
+)
+IMPLICATIONS["RMSE"] = lambda a, b: (1 / 2 * ((1 - a) ** ip + b ** ip + eps)) ** (
+    1 / ip
+)
+IMPLICATIONS["RY"] = r_impl(
+    lambda a, c: 1 - ((1 - c + eps) ** ip - (1 - a + eps) ** ip + eps) ** (1 / ip)
+)
 
-CONJUNCTS['RMSE'] = lambda a, b: 1 - (1 / 2 * ((1 - a) ** tp + (1 - b) ** tp) + eps) ** (1 / tp)
+CONJUNCTS["RMSE"] = lambda a, b: 1 - (
+    1 / 2 * ((1 - a) ** tp + (1 - b) ** tp) + eps
+) ** (1 / tp)
 
 # Luk implications
-CONJUNCTS['LK'] = lambda a, b: torch.clamp(a + b - 1, min=0)
-DISJUNCTS['LK'] = lambda a, b: torch.clamp(a + b, max=1)
-IMPLICATIONS['LK'] = lambda a, c: torch.clamp(1 - a + c, max=1)
+CONJUNCTS["LK"] = lambda a, b: torch.clamp(a + b - 1, min=0)
+DISJUNCTS["LK"] = lambda a, b: torch.clamp(a + b, max=1)
+IMPLICATIONS["LK"] = lambda a, c: torch.clamp(1 - a + c, max=1)
 
 # Trigonometric
-CONJUNCTS['T'] = lambda a, b: 2 / math.pi * torch.asin(eps + torch.sin(a * math.pi / 2) * torch.sin(b * math.pi / 2))
-DISJUNCTS['T'] = lambda a, b: 2 / math.pi * torch.acos(eps + torch.cos(a * math.pi / 2) * torch.cos(b * math.pi / 2))
-IMPLICATIONS['T'] = lambda a, c: DISJUNCTS['T'](1 - a, c)
+CONJUNCTS["T"] = (
+    lambda a, b: 2
+    / math.pi
+    * torch.asin(eps + torch.sin(a * math.pi / 2) * torch.sin(b * math.pi / 2))
+)
+DISJUNCTS["T"] = (
+    lambda a, b: 2
+    / math.pi
+    * torch.acos(eps + torch.cos(a * math.pi / 2) * torch.cos(b * math.pi / 2))
+)
+IMPLICATIONS["T"] = lambda a, c: DISJUNCTS["T"](1 - a, c)
 
 # Hamacher
 v = 0
-CONJUNCTS['H'] = lambda a, b: a * b / (eps + v + (1 - v) * (a + b - a * b))
-DISJUNCTS['H'] = lambda a, b: (1 - (1 - v) * a * b) / (eps + 1 - (1 - v) * a * b)
-IMPLICATIONS['H'] = lambda a, c: DISJUNCTS['H'](1 - a, c)
+CONJUNCTS["H"] = lambda a, b: a * b / (eps + v + (1 - v) * (a + b - a * b))
+DISJUNCTS["H"] = lambda a, b: (1 - (1 - v) * a * b) / (eps + 1 - (1 - v) * a * b)
+IMPLICATIONS["H"] = lambda a, c: DISJUNCTS["H"](1 - a, c)
 # Sigmoidal
 pa = conf.s
 pb0 = conf.b0
@@ -227,39 +259,40 @@ def sigmoid(f):
     f1 = 1  # f(1, 1)
     y1 = math.exp(-pa * (f1 + pb0)) + 1
     y2 = math.exp(-pa * (f0 + pb0)) + 1
-    c = (y1 / (y2 - y1))
+    c = y1 / (y2 - y1)
 
     def _sigmoid(a, b):
         # This is a bug: Doesnt work with f's that have a complete reach. If you use this for implications, it starts
         # acting up as for implications f(0, 0) and f(1, 1) are both 1
         if DEBUG:
             if (a != a).any():
-                print('nan a')
+                print("nan a")
             if (b != b).any():
-                print('nan b')
+                print("nan b")
 
         r = c * (y2 * torch.sigmoid(pa * (f(a, b) + pb0)) - 1)
         if DEBUG:
             if (r != r).any():
-                print('nan')
+                print("nan")
                 import traceback
+
                 traceback.print_stack()
         return r
 
     return _sigmoid
 
 
-CONJUNCTS['SP'] = sigmoid(lambda a, b: a * b)
-DISJUNCTS['SP'] = sigmoid(lambda a, b: 1 - (1 - a) * (1 - b))
-IMPLICATIONS['SP'] = sigmoid(lambda a, b: 1 - a + a * b)
-IMPLICATIONS['SLK'] = sigmoid(IMPLICATIONS['LK'])
-IMPLICATIONS['SucLK'] = sigmoid(lambda a, b: 1 - a + b)
-IMPLICATIONS['SKD'] = sigmoid(lambda a, b: torch.max(1 - a, b))
-IMPLICATIONS['SY'] = sigmoid(IMPLICATIONS['Y'])
+CONJUNCTS["SP"] = sigmoid(lambda a, b: a * b)
+DISJUNCTS["SP"] = sigmoid(lambda a, b: 1 - (1 - a) * (1 - b))
+IMPLICATIONS["SP"] = sigmoid(lambda a, b: 1 - a + a * b)
+IMPLICATIONS["SLK"] = sigmoid(IMPLICATIONS["LK"])
+IMPLICATIONS["SucLK"] = sigmoid(lambda a, b: 1 - a + b)
+IMPLICATIONS["SKD"] = sigmoid(lambda a, b: torch.max(1 - a, b))
+IMPLICATIONS["SY"] = sigmoid(IMPLICATIONS["Y"])
 
-IMPLICATIONS['GG'] = r_impl(lambda a, c: c / (a + eps))
-IMPLICATIONS['uGG'] = upper_contra(IMPLICATIONS['GG'])
-IMPLICATIONS['lGG'] = lower_contra(IMPLICATIONS['GG'])
+IMPLICATIONS["GG"] = r_impl(lambda a, c: c / (a + eps))
+IMPLICATIONS["uGG"] = upper_contra(IMPLICATIONS["GG"])
+IMPLICATIONS["lGG"] = lower_contra(IMPLICATIONS["GG"])
 
 
 def normalized_rc(a, c):
@@ -272,7 +305,7 @@ def normalized_rc(a, c):
 
 
 # T-norm generators
-GENERATORS['P'] = lambda a: -torch.log(a + eps)
+GENERATORS["P"] = lambda a: -torch.log(a + eps)
 
 # Choice of aggregator
 A_clause = lambda a, b, c: (a + b + c) / 3

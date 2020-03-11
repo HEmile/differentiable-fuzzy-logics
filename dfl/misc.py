@@ -16,8 +16,8 @@ def print_hook_std(writer, name, step):
 
 
 def add_print_hooks(tensor, writer, name, step):
-    tensor.register_hook(print_hook_mean(writer, name + '/mean', step))
-    tensor.register_hook(print_hook_std(writer, name + '/stdev', step))
+    tensor.register_hook(print_hook_mean(writer, name + "/mean", step))
+    tensor.register_hook(print_hook_std(writer, name + "/stdev", step))
 
 
 def one_hot(logits, labels):
