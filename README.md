@@ -8,4 +8,5 @@ The code is tested for
 
 Similar configurations should also work.
 
-## 
+## MNIST Experiments
+See the `dfl` folder for the semi-supervised MNIST experiments. 
