@@ -44,7 +44,8 @@ def train(
         sup_data, sup_target = sup_data.to(device), sup_target.to(device)
         unsup_data, unsup_target = unsup_data.to(device), unsup_target.to(device)
 
-        optimizer.zero_grad()
+        # Set to none is recommend in Performance Tuning Guide.
+        optimizer.zero_grad(set_to_none=True)
 
         writer_p = writer if step % config.log_interval == 0 else None
 
@@ -82,7 +83,6 @@ def train(
         else:
             same_loss = 0
         loss = conf.rl_weight * rl_loss + sup_loss + conf.same_weight * same_loss
-
         loss.backward()
         optimizer.step()
 
@@ -192,8 +192,12 @@ def main():
     model = SameNet().to(device)
     real_logic = RealLogic(config.A_clause, conf.A_quant, conf.T, conf.I, conf.G)
 
-    optimizer = optim.SGD(model.parameters(), lr=config.lr, momentum=config.momentum)
-    # optimizer = optim.Adam(model.parameters(), lr=config.lr)
+    if config.algorithm == "sgd":
+        optimizer = optim.SGD(
+            model.parameters(), lr=config.lr, momentum=config.momentum
+        )
+    elif config.algorithm == "adam":
+        optimizer = optim.Adam(model.parameters(), lr=config.lr)
     for name, param in model.named_parameters():
         if param.requires_grad:
             print(name)

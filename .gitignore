@@ -3,3 +3,5 @@
 /dfl/tb_runs/
 /data/
 /dfl/__pycache__/
+*.pyc
+*.out
