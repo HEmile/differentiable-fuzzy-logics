@@ -1,5 +1,5 @@
 import torch
-from .util import eps
+from dfl.operators.util import eps
 import torch.nn.functional as F
 import math
 

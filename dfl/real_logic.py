@@ -9,13 +9,14 @@ from dfl.misc import one_hot
 
 
 class RealLogic(nn.Module):
-    def __init__(self, A_clause, A_quant, T, I, G):
+    def __init__(self, A_clause, A_quant, T, I, G, log_level="normal"):
         super(RealLogic, self).__init__()
         self.A_clause = A_clause
         self.A_quant = A_quant
         self.T = T
         self.I = I
         self.G = G
+        self.log_level = log_level
 
     def forward(self, result, writer, step):
         logits1 = result["logits_1"]
@@ -35,6 +36,7 @@ class RealLogic(nn.Module):
         # Computes the backward hook for monitoring
         def _hook(name, truth_a, truth_c, is_ant):
             self.max_amt_backprop += 1
+            log_level = self.log_level
 
             def hook(grad):
                 grad = -grad
@@ -53,7 +55,6 @@ class RealLogic(nn.Module):
                     print(I2)
                     print(I3)
 
-                tag = name + t_name
                 tot_grad = torch.sum(grad)
                 tot_abs_grad = torch.sum(abs_grad)
 
@@ -61,7 +62,6 @@ class RealLogic(nn.Module):
                 d_global[g_tag + "grad"] += tot_grad
                 d_global[g_tag + "absgrad"] += tot_abs_grad
 
-                writer.add_scalar(tag + "grad", tot_grad, step)
                 corr_update = (grad > 0) == truth_sub_f
                 corr_reason = corr_update & (truth_a == truth_c)
                 # print('-----------------------------------')
@@ -73,22 +73,28 @@ class RealLogic(nn.Module):
 
                 tot_corr_up = torch.sum(abs_grad[corr_update])
                 d_global[g_tag + "correct_update"] += tot_corr_up
-                writer.add_scalar(
-                    tag + "correct_update", tot_corr_up / tot_abs_grad, step
-                )
-
                 tot_corr_reas = torch.sum(abs_grad[corr_reason])
-                writer.add_scalar(
-                    tag + "correct_reason", tot_corr_reas / tot_abs_grad, step
-                )
                 d_global[g_tag + "correct_reason"] += tot_corr_reas
+
+                if log_level == "all":
+                    tag = name + t_name
+                    # Write local gradients
+                    writer.add_scalar(tag + "grad", tot_grad, step)
+                    writer.add_scalar(
+                        tag + "correct_update", tot_corr_up / tot_abs_grad, step
+                    )
+
+                    writer.add_scalar(
+                        tag + "correct_reason", tot_corr_reas / tot_abs_grad, step
+                    )
 
                 self.amt_backprop += 1
                 if (
                     self.amt_backprop == self.max_amt_backprop
-                    or conf.i == "G"
+                    or conf.i == "G"  # Edge case: G only has a cons gradient
                     and self.amt_backprop == self.max_amt_backprop / 2
                 ):
+                    # Commit the global grad.
                     for s in ["/ant/", "/cons/"]:
                         _tag = "global_grad" + s
                         if d_global[_tag + "absgrad"] != 0:
@@ -159,13 +165,14 @@ class RealLogic(nn.Module):
         #         rl4 = self.A_quant(psame.view(n, n).diag())
 
         if writer:
-            writer.add_scalar("dig_dig_then_same/sat", rl1, step)
-            writer.add_scalar("dig_same_then_dig/sat", rl2, step)
-            writer.add_scalar("samexy_then_sameyx/sat", rl3, step)
-            # writer.add_scalar('samexx/sat', rl4, step)
+            if self.log_level == "verbose":
+                writer.add_scalar("dig_dig_then_same/sat", rl1, step)
+                writer.add_scalar("dig_same_then_dig/sat", rl2, step)
+                writer.add_scalar("samexy_then_sameyx/sat", rl3, step)
+                # writer.add_scalar('samexx/sat', rl4, step)
 
-            writer.add_scalar("same/avg_val", torch.mean(psame), step)
-            psame.register_hook(same_hook)
+                writer.add_scalar("same/avg_val", torch.mean(psame), step)
+                psame.register_hook(same_hook)
 
             label1 = result["labels_1"]
             label2 = result["labels_2"]

@@ -1,5 +1,5 @@
 import torch
-from .util import eps, sigmoidal
+from dfl.operators.util import eps, sigmoidal
 
 
 def upper_contra(I):

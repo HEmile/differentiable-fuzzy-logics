@@ -72,7 +72,7 @@ class SameNet(nn.Module):
 
         return logits_same, labels_same
 
-    def forward(self, x, labels, writer, step):
+    def forward(self, x, labels, writer, step, log_level):
         # Forward pass through digit recognition model
         logits, e = self.detector(x, writer, step)
 
@@ -95,16 +95,17 @@ class SameNet(nn.Module):
             g_tot_grad = 0
             g_truth_grad = 0
             for i in range(grad.size()[1]):
-                tag = "class_grad/" + str(i)
                 tensor = -grad[:, i]
                 truth = (labels == i) == (tensor > 0)
 
                 tot_grad = torch.sum(torch.abs(tensor))
-                writer.add_scalar(tag, tot_grad, step)
                 g_tot_grad += tot_grad
                 true_grad = torch.sum(torch.abs(tensor[truth]))
                 g_truth_grad += true_grad
-                writer.add_scalar(tag + "/precision", true_grad / tot_grad, step)
+                if log_level == "all":
+                    tag = "class_grad/" + str(i)
+                    writer.add_scalar(tag, tot_grad, step)
+                    writer.add_scalar(tag + "/precision", true_grad / tot_grad, step)
             writer.add_scalar("class_grad/global", g_tot_grad, step)
             writer.add_scalar(
                 "class_grad/global_precision", g_truth_grad / g_tot_grad, step
@@ -112,10 +113,11 @@ class SameNet(nn.Module):
 
         if writer:
             logits.register_hook(hook)
-            writer.add_scalar(
-                "activations/stdev_same_logits", torch.std(logits_same), step
-            )
-            add_print_hooks(logits_same, writer, "activations/same", step)
+            if log_level == "all":
+                writer.add_scalar(
+                    "activations/stdev_same_logits", torch.std(logits_same), step
+                )
+                add_print_hooks(logits_same, writer, "activations/same", step)
 
         return {
             "logits_unpaired": logits,

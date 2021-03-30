@@ -1,5 +1,5 @@
 import torch
-from .util import eps, sigmoidal
+from dfl.operators.util import eps, sigmoidal
 import math
 
 # Nilpotent norm

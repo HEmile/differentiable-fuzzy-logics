@@ -49,13 +49,15 @@ def train(
 
         writer_p = writer if step % config.log_interval == 0 else None
 
-        result_sup = model(sup_data, sup_target, None, step)
+        result_sup = model(sup_data, sup_target, None, step, config.conf.log_level)
         sup_loss = torch.nn.CrossEntropyLoss()(
             result_sup["logits_unpaired"], sup_target
         )
 
         if conf.rl_weight > 0 or conf.same_weight > 0:
-            result_unsup = model(unsup_data, unsup_target, writer_p, step)
+            result_unsup = model(
+                unsup_data, unsup_target, writer_p, step, config.conf.log_level
+            )
         if conf.rl_weight > 0:
             rl_loss = real_logic(result_unsup, writer_p, step)
         else:
@@ -123,7 +125,7 @@ def test(model, real_logic, device, test_loader, writer, step):
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
 
-            result = model(data, target, None, step)
+            result = model(data, target, None, step, config.conf.log_level)
             test_rl_loss += real_logic(result, None, step).item()
 
             sup_logits = result["logits_unpaired"]
@@ -190,14 +192,16 @@ def main():
     sup_loader, unsup_loader, test_loader = get_loaders(config.seed)
 
     model = SameNet().to(device)
-    real_logic = RealLogic(config.A_clause, conf.A_quant, conf.T, conf.I, conf.G)
+    real_logic = RealLogic(
+        config.A_clause, conf.A_quant, conf.T, conf.I, conf.G, conf.log_level
+    )
 
     if config.algorithm == "sgd":
         optimizer = optim.SGD(
-            model.parameters(), lr=config.lr, momentum=config.momentum
+            model.parameters(), lr=config.conf.lr, momentum=config.conf.momentum
         )
     elif config.algorithm == "adam":
-        optimizer = optim.Adam(model.parameters(), lr=config.lr)
+        optimizer = optim.Adam(model.parameters(), lr=config.conf.lr)
     for name, param in model.named_parameters():
         if param.requires_grad:
             print(name)
