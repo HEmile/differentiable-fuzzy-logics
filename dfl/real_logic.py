@@ -62,7 +62,10 @@ class RealLogic(nn.Module):
                 d_global[g_tag + "grad"] += tot_grad
                 d_global[g_tag + "absgrad"] += tot_abs_grad
 
+                # Correct update: The gradient is going in the right direction
                 corr_update = (grad > 0) == truth_sub_f
+                # Correct reasoning: The gradient is going in the right direction, and this also follows
+                # the actual label. Ie, going in the right direction is done using valid logical reasoning
                 corr_reason = corr_update & (truth_a == truth_c)
                 # print('-----------------------------------')
                 # print(tag + 'corr_update', corr_update)

@@ -5,15 +5,18 @@ from dfl.operators.aggregators import createAggregators
 from dfl.operators.implications import createImplications
 from dfl.operators.tnorms import createConjunctsDisjuncts
 from dfl.operators.util import eps
+import uuid
 
 
 class BaseConfig:
-    def __init__(self, t, i, a_quant, rl_weight=1.0, p=2.0):
+    def __init__(self, t, i, a_quant, rl_weight=1.0, p=2.0, alg="sgd"):
         self.t = t
         self.i = i
         self.a_quant = a_quant
         self.rl_weight = rl_weight
         self.p = p
+        self.algorithm = alg
+        self.lr = 0.01 if "sgd" else 0.001
 
 
 class Config(object):
@@ -37,6 +40,7 @@ class Config(object):
         self.lr = None
         self.momentum = None
         self.log_level = None
+        self.algorithm = None
 
         self.parser = self.setup_parser()
         self.args = vars(self.parser.parse_args())
@@ -51,7 +55,7 @@ class Config(object):
         parser.add_argument("-t", dest="t", type=str, default="Y")
         parser.add_argument("-i", dest="i", type=str, default="SP")
         parser.add_argument("-a", dest="a_quant", type=str, default="cross_entropy")
-        parser.add_argument("-rlw", dest="rl_weight", type=float, default=10.0)
+        parser.add_argument("-rlw", dest="rl_weight", type=float, default=1.0)
         parser.add_argument("-samew", dest="same_weight", type=float, default=1.0)
         parser.add_argument("-epochs", dest="epochs", type=int, default=5000)
         parser.add_argument("-n", dest="name", type=str, default="")
@@ -65,6 +69,7 @@ class Config(object):
         parser.add_argument("-g", dest="g", type=str, default="")
         parser.add_argument("-lr", dest="lr", type=float, default=0.01)
         parser.add_argument("-m", dest="momentum", type=float, default=0.5)
+        parser.add_argument("-alg", dest="algorithm", type=str, default="sgd")
         parser.add_argument(
             "-l",
             dest="log_level",
@@ -100,6 +105,7 @@ class Config(object):
         self.experiment_name += "-dds {} -dsd {} -ss {}".format(
             str(self.dds), str(self.dsd), str(self.ss)
         )
+        self.experiment_name += uuid.uuid4().hex
 
         print(self.experiment_name)
 
@@ -149,7 +155,6 @@ A_clause = lambda a, b, c: (a + b + c) / 3
 
 conf.choose_operators()
 
-algorithm = "sgd"
 log_interval = 100
 
 batch_size = 64

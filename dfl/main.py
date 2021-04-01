@@ -196,11 +196,11 @@ def main():
         config.A_clause, conf.A_quant, conf.T, conf.I, conf.G, conf.log_level
     )
 
-    if config.algorithm == "sgd":
+    if config.conf.algorithm == "sgd":
         optimizer = optim.SGD(
             model.parameters(), lr=config.conf.lr, momentum=config.conf.momentum
         )
-    elif config.algorithm == "adam":
+    elif config.conf.algorithm == "adam":
         optimizer = optim.Adam(model.parameters(), lr=config.conf.lr)
     for name, param in model.named_parameters():
         if param.requires_grad:
