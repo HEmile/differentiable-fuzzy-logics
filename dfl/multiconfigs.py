@@ -10,18 +10,21 @@ from dfl.main import main
 #     BaseConfig("Y", "RY", "Y", p=20.0),
 # ]
 
-# Symmetric S, with adam
+# Symmetric R, with adam
 configs = [
-    BaseConfig("P", "GG", "cross_entropy", rl_weight=10, alg="adam"),
-    # BaseConfig("G", "G", "min", alg='adam'),
-    BaseConfig("Y", "RY", "Y", alg="adam"),
-    BaseConfig("Y", "RY", "Y", p=20.0, alg="adam"),
+    # BaseConfig("P", "GG", "cross_entropy", rl_weight=10, alg="adam"),
+    BaseConfig("G", "G", "min", alg="adam"),
+    BaseConfig("LK", "LK", "LK", alg="adam"),
+    BaseConfig("Np", "F", "Np", alg="adam"),
+    BaseConfig("LK", "LK", "mean", alg="adam")
+    # BaseConfig("Y", "RY", "Y", alg="adam"),
+    # BaseConfig("Y", "RY", "Y", p=20.0, alg="adam"),
 ]
 
-# Symmetric R, with adam
+# # Symmetric S, with adam
 # configs = [
 #     BaseConfig("P", "RC", "cross_entropy", rl_weight=10, alg="adam"),
-#     # BaseConfig("G", "G", "min", alg='adam'),
+#     BaseConfig("G", "KD", "min", alg="adam"),
 #     BaseConfig("Y", "Y", "Y", alg="adam"),
 #     BaseConfig("Y", "Y", "Y", p=20.0, alg="adam"),
 # ]

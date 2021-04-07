@@ -4,8 +4,8 @@ import torch.optim as optim
 from tensorboardX import SummaryWriter
 import subprocess
 from dfl.dataset import get_loaders
-from dfl.model import SameNet
-from dfl.real_logic import RealLogic
+from dfl.model import SameNet, Sum9Net
+from dfl.real_logic import RealLogic, Sum9Logic
 import dfl.config as config
 from dfl.config import conf, test_batch_size
 
@@ -63,6 +63,7 @@ def train(
         else:
             rl_loss = 0
         if conf.same_weight > 0:
+            # Same is also used for sum9
             logits_same_sup = result_sup["logits_same_sqz"]
             labels_same_sup = result_sup["labels_same"]
             n_pos_exmps = torch.sum(labels_same_sup).item()
@@ -191,10 +192,23 @@ def main():
 
     sup_loader, unsup_loader, test_loader = get_loaders(config.seed)
 
-    model = SameNet().to(device)
-    real_logic = RealLogic(
-        config.A_clause, conf.A_quant, conf.T, conf.I, conf.G, conf.log_level
-    )
+    if conf.problem == "same":
+        model = SameNet().to(device)
+        real_logic = RealLogic(
+            config.A_clause, conf.A_quant, conf.T, conf.I, conf.G, conf.log_level
+        )
+    elif conf.problem == "sum9":
+        model = Sum9Net().to(device)
+        real_logic = Sum9Logic(
+            config.A_clause_sum9,
+            conf.A_quant,
+            conf.E,
+            conf.T,
+            conf.S,
+            conf.I,
+            conf.G,
+            conf.log_level,
+        )
 
     if config.conf.algorithm == "sgd":
         optimizer = optim.SGD(

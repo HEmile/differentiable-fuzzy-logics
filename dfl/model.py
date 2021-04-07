@@ -4,9 +4,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class Net(nn.Module):
+class DigitsNet(nn.Module):
     def __init__(self):
-        super(Net, self).__init__()
+        super(DigitsNet, self).__init__()
         self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
         self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
         self.conv2_drop = nn.Dropout2d()
@@ -33,12 +33,12 @@ class Net(nn.Module):
 class SameNet(nn.Module):
     def __init__(self):
         super(SameNet, self).__init__()
-        self.detector = Net()
+        self.detector = DigitsNet()
         # Linear same relation
-        k = 10
-        self.fcrel = nn.Linear(100, k)
-        self.bilinear = nn.Bilinear(50, 50, k)
-        self.lastfc = nn.Linear(k, 1)
+        self.k = 10
+        self.fcrel = nn.Linear(100, self.k)
+        self.bilinear = nn.Bilinear(50, 50, self.k)
+        self.lastfc = nn.Linear(self.k, 1)
 
     def _combine_embeddings(self, embedding):
         # Computes the concatenation of every possible combination of embeddings
@@ -57,8 +57,7 @@ class SameNet(nn.Module):
         n2 = labels.size()[0]
         y1 = labels.repeat(n2)
         y2 = labels.unsqueeze(1).expand(n2, n2).reshape(-1)
-        labels_same = y1 == y2
-        return labels_same
+        return y1 == y2
 
     def get_same_logits(self, embedding, labels):
         x1, x2, embed_pairs = self._combine_embeddings(embedding)
@@ -91,25 +90,7 @@ class SameNet(nn.Module):
         logits_same, labels_same = self.get_same_logits(e, labels)
 
         # Hook to be used by pytorch in the backward pass for debugging and monitoring
-        def hook(grad):
-            g_tot_grad = 0
-            g_truth_grad = 0
-            for i in range(grad.size()[1]):
-                tensor = -grad[:, i]
-                truth = (labels == i) == (tensor > 0)
-
-                tot_grad = torch.sum(torch.abs(tensor))
-                g_tot_grad += tot_grad
-                true_grad = torch.sum(torch.abs(tensor[truth]))
-                g_truth_grad += true_grad
-                if log_level == "all":
-                    tag = "class_grad/" + str(i)
-                    writer.add_scalar(tag, tot_grad, step)
-                    writer.add_scalar(tag + "/precision", true_grad / tot_grad, step)
-            writer.add_scalar("class_grad/global", g_tot_grad, step)
-            writer.add_scalar(
-                "class_grad/global_precision", g_truth_grad / g_tot_grad, step
-            )
+        hook = lambda grad: self.hook(grad, labels, writer, step, log_level)
 
         if writer:
             logits.register_hook(hook)
@@ -129,3 +110,37 @@ class SameNet(nn.Module):
             "labels_2": labels_y,
             "labels_same": labels_same,
         }
+
+    def hook(self, grad, labels, writer, step, log_level):
+        g_tot_grad = 0
+        g_truth_grad = 0
+        for i in range(grad.size()[1]):
+            tensor = -grad[:, i]
+            truth = (labels == i) == (tensor > 0)
+
+            tot_grad = torch.sum(torch.abs(tensor))
+            g_tot_grad += tot_grad
+            true_grad = torch.sum(torch.abs(tensor[truth]))
+            g_truth_grad += true_grad
+            if log_level == "all":
+                tag = "class_grad/" + str(i)
+                writer.add_scalar(tag, tot_grad, step)
+                writer.add_scalar(tag + "/precision", true_grad / tot_grad, step)
+        writer.add_scalar("class_grad/global", g_tot_grad, step)
+        writer.add_scalar(
+            "class_grad/global_precision", g_truth_grad / g_tot_grad, step
+        )
+
+
+class Sum9Net(SameNet):
+    # Same thing as SameNet, except it changes how correct labels are found to match
+    # two digits summing to 9.
+    def __init__(self):
+        super(Sum9Net, self).__init__()
+
+    def _combine_labels(self, labels):
+        # Pairs the labels to find the array of targets for same
+        n2 = labels.size()[0]
+        y1 = labels.repeat(n2)
+        y2 = labels.unsqueeze(1).expand(n2, n2).reshape(-1)
+        return y1 + y2 == 9

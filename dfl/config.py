@@ -1,7 +1,7 @@
 import torch
 from argparse import ArgumentParser
 
-from dfl.operators.aggregators import createAggregators
+from dfl.operators.aggregators import createAggregators, createExistentialAggregators
 from dfl.operators.implications import createImplications
 from dfl.operators.tnorms import createConjunctsDisjuncts
 from dfl.operators.util import eps
@@ -9,21 +9,25 @@ import uuid
 
 
 class BaseConfig:
-    def __init__(self, t, i, a_quant, rl_weight=1.0, p=2.0, alg="sgd"):
+    def __init__(self, t, i, a_quant, rl_weight=1.0, p=2.0, alg="sgd", problem="same"):
         self.t = t
         self.i = i
         self.a_quant = a_quant
         self.rl_weight = rl_weight
         self.p = p
         self.algorithm = alg
-        self.lr = 0.01 if "sgd" else 0.001
+        self.lr = 0.01 if alg == "sgd" else 0.001
+        self.problem = problem
 
 
 class Config(object):
     def __init__(self):
+        self.problem = None
         self.t = None
+        self.tco = None
         self.i = None
         self.a_quant = None
+        self.exists = None
         self.rl_weight = None
         self.same_weight = None
         self.epochs = None
@@ -52,9 +56,14 @@ class Config(object):
     def setup_parser(self):
         parser = ArgumentParser(description="training code")
 
+        parser.add_argument(
+            "-p", dest="problem", type=str, default="same", help="same or sum9"
+        )
         parser.add_argument("-t", dest="t", type=str, default="Y")
+        parser.add_argument("-tco", dest="tco", type=str, default="P")
         parser.add_argument("-i", dest="i", type=str, default="SP")
         parser.add_argument("-a", dest="a_quant", type=str, default="cross_entropy")
+        parser.add_argument("-e", dest="exists", type=str, default="max")
         parser.add_argument("-rlw", dest="rl_weight", type=float, default=1.0)
         parser.add_argument("-samew", dest="same_weight", type=float, default=1.0)
         parser.add_argument("-epochs", dest="epochs", type=int, default=5000)
@@ -87,14 +96,14 @@ class Config(object):
         self.rl_weight = baseConfig.rl_weight
         self.ip = baseConfig.p
         self.tp = baseConfig.p
+        self.lr = baseConfig.lr
+        self.algorithm = baseConfig.algorithm
         self.choose_operators()
         self.reset_experiment()
 
     def reset_experiment(self):
-        print(self.t)
-        print(self.i)
-        self.experiment_name = "split_100/-n {}: -t {} -i {} -a {}".format(
-            self.name, self.t, self.i, self.a_quant
+        self.experiment_name = "split_100/-n {}: -p {} -t {} -i {} -a {}".format(
+            self.name, self.problem, self.t, self.i, self.a_quant
         )
         self.experiment_name += "-rlw {} samew {}".format(
             str(self.rl_weight), str(self.same_weight)
@@ -102,8 +111,8 @@ class Config(object):
         self.experiment_name += " -s {} b0 {} tp {} ip {}".format(
             str(self.s), str(self.b0), str(self.tp), str(self.ip)
         )
-        self.experiment_name += "-dds {} -dsd {} -ss {}".format(
-            str(self.dds), str(self.dsd), str(self.ss)
+        self.experiment_name += "-dds {} -dsd {} -ss {} -alg {} ".format(
+            str(self.dds), str(self.dsd), str(self.ss), self.algorithm
         )
         self.experiment_name += uuid.uuid4().hex
 
@@ -122,8 +131,10 @@ class Config(object):
         else:
             self.G = lambda x: x
             self.T = CONJUNCTS[self.t]
+            self.S = DISJUNCTS[self.tco]
             self.I = IMPLICATIONS[self.i]
             self.A_quant = AGGREGATORS[self.a_quant]
+            self.E = EXISTS[self.exists]
 
 
 DEBUG = False
@@ -140,6 +151,7 @@ ap = p_yager
 GENERATORS = {}
 CONJUNCTS, DISJUNCTS = createConjunctsDisjuncts(conf)
 AGGREGATORS = createAggregators(conf)
+EXISTS = createExistentialAggregators(conf)
 IMPLICATIONS = createImplications(conf, DISJUNCTS)
 
 
@@ -152,6 +164,7 @@ GENERATORS["P"] = lambda a: -torch.log(a + eps)
 
 # Choice of aggregator
 A_clause = lambda a, b, c: (a + b + c) / 3
+A_clause_sum9 = lambda a, b: (a + b) / 2
 
 conf.choose_operators()
 

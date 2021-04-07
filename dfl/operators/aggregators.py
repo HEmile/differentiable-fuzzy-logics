@@ -37,3 +37,14 @@ def createAggregators(conf):
     )
     AGGREGATORS["Np"] = _agg_np
     return AGGREGATORS
+
+
+def createExistentialAggregators(conf):
+    EXISTS = {}
+
+    EXISTS["sum"] = lambda a: torch.sum(a, dim=-1)
+    EXISTS["mean"] = lambda a: torch.mean(a, dim=-1)
+    EXISTS["max"] = lambda a: torch.max(a + torch.randn_like(a) / 10000, dim=-1).values
+    EXISTS["probsum"] = lambda a: 1 - torch.prod(1 - a, dim=-1)
+    EXISTS["LK"] = lambda a: torch.min(torch.sum(a, dim=-1), 1)
+    return EXISTS
