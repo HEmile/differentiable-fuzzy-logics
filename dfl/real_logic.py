@@ -228,7 +228,6 @@ class Sum9Logic(RealLogic):
 
             def hook(grad):
                 grad = -grad
-
                 t_name = "/ant/" if is_ant else "/cons/"
                 truth_sub_f = truth_a if is_ant else truth_c
                 abs_grad = torch.abs(grad)
@@ -324,15 +323,18 @@ class Sum9Logic(RealLogic):
 
         n = int(np.sqrt(psum9.size()[0]))
         # RL computation of \forall x \exists y Sum9(x, y)
+        # This formula can be wrong in an unfortunate minibatch.
+        # Probability of wrong can be computed using prob_sum9_wrong.py
+        # For b=64, this probability is 0.01176195
         asMatrix = psum9.view(n, n)
         Exists = self.E(asMatrix)
         rl1 = self.A_quant(Exists)
 
         # RL computation of digit(x) & same(x, y) -> digit(y)
-        disjunct = 0.0
+        A2 = psum9.squeeze(1)
+        disjunct = torch.zeros_like(A2)
         for i in range(10):
             disjunct = self.S(disjunct, self.T(p1[:, i], p2[:, 9 - i]))
-        A2 = psum9.squeeze(1)
         C2 = disjunct
         I2 = self.I(A2, C2)
         rl2 = self.A_quant(I2)

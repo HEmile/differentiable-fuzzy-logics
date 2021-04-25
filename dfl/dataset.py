@@ -36,9 +36,9 @@ def train_valid_split(ds, split_fold=10, random_seed=None):
     return train, valid
 
 
-def get_loaders(seed):
+def get_loaders(seed, dir):
     mnist_dataset = datasets.MNIST(
-        "../data",
+        dir,
         train=True,
         download=True,
         transform=transforms.Compose(

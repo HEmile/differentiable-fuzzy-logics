@@ -190,7 +190,9 @@ def main():
     device = torch.device("cuda" if use_cuda else "cpu")
     print(device)
 
-    sup_loader, unsup_loader, test_loader = get_loaders(config.seed)
+    sup_loader, unsup_loader, test_loader = get_loaders(
+        config.dataset_seed, config.conf.data_dir
+    )
 
     if conf.problem == "same":
         model = SameNet().to(device)
@@ -216,12 +218,12 @@ def main():
         )
     elif config.conf.algorithm == "adam":
         optimizer = optim.Adam(model.parameters(), lr=config.conf.lr)
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(name)
+    # for name, param in model.named_parameters():
+    #     if param.requires_grad:
+    #         print(name)
 
-    writer_train = SummaryWriter("tb_runs/" + conf.experiment_name + "/train")
-    writer_val = SummaryWriter("tb_runs/" + conf.experiment_name + "/val")
+    writer_train = SummaryWriter(conf.out_dir + "/" + conf.experiment_name + "/train")
+    writer_val = SummaryWriter(conf.out_dir + "/" + conf.experiment_name + "/val")
 
     unsup_enumerator = iter(unsup_loader)
     step = 0
