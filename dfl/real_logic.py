@@ -358,3 +358,39 @@ class Sum9Logic(RealLogic):
             C2.register_hook(_hook("sum9_then_plus", labels_sum9, labels_sum9, False))
 
         return -self.A_clause(rl1, rl2)
+
+
+class BothLogic(nn.Module):
+    def __init__(self, A_quant, E, T, S, I, G, log_level="normal"):
+        super(BothLogic, self).__init__()
+        self.samelogic = RealLogic(config.A_clause, A_quant, T, I, G, log_level)
+        self.sum9Logic = Sum9Logic(
+            config.A_clause_sum9, A_quant, E, T, S, I, G, log_level
+        )
+        self.G = G
+
+    def forward(self, result, writer, step):
+        logits1 = result["logits_1"]
+        logits2 = result["logits_2"]
+        logits_same = result["logits_same"]
+        logits_sum9 = result["logits_sum9"]
+        p1 = self.G(F.softmax(logits1, dim=-1))
+        p2 = self.G(F.softmax(logits2, dim=-1))
+        psame = self.G(torch.sigmoid(logits_same))
+        psum9 = self.G(torch.sigmoid(logits_sum9))
+
+        label1 = result["labels_1"]
+        label2 = result["labels_2"]
+        labels_same = result["labels_same"]
+        labels_sum9 = result["labels_sum9"]
+
+        self.samelogic.amt_backprop = 0
+        self.sum9Logic.amt_backprop = 0
+        self.samelogic.max_amt_backprop = 0
+        self.sum9Logic.max_amt_backprop = 0
+
+        return self.samelogic.logic(
+            p1, p2, psame, label1, label2, labels_same, writer, step
+        ) + self.sum9Logic.logic(
+            p1, p2, psum9, label1, label2, labels_sum9, writer, step
+        )

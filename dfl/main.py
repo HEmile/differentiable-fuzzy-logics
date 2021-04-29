@@ -4,8 +4,8 @@ import torch.optim as optim
 from tensorboardX import SummaryWriter
 import subprocess
 from dfl.dataset import get_loaders
-from dfl.model import SameNet, Sum9Net
-from dfl.real_logic import RealLogic, Sum9Logic
+from dfl.model import SameNet, Sum9Net, BothNet
+from dfl.real_logic import RealLogic, Sum9Logic, BothLogic
 import dfl.config as config
 from dfl.config import conf, test_batch_size
 
@@ -19,6 +19,23 @@ def print_gpu_use():
     gpu_memory = [int(x) for x in result.strip().split("\n")]
     gpu_memory_map = dict(zip(range(len(gpu_memory)), gpu_memory))
     print(gpu_memory_map)
+
+
+def compute_binary_loss(logits, labels):
+    n_pos_exmps = torch.sum(labels).item()
+    n_neg_exmps = labels.size()[0] - n_pos_exmps
+    # pos_weight = 1. * (labels_same_sup.size()[0] - pos_exmps) / pos_exmps
+
+    pos_exmps = logits[labels]
+    neg_exmps = logits[~labels][
+        torch.randint(high=n_neg_exmps, size=(n_pos_exmps,)).long()
+    ]
+    same_exmps = torch.cat([pos_exmps, neg_exmps])
+    same_labels = torch.cat(
+        [labels.new_ones(n_pos_exmps), labels.new_zeros(n_pos_exmps),]
+    )
+
+    return torch.nn.BCEWithLogitsLoss()(same_exmps, same_labels.float())
 
 
 def train(
@@ -66,23 +83,11 @@ def train(
             # Same is also used for sum9
             logits_same_sup = result_sup["logits_same_sqz"]
             labels_same_sup = result_sup["labels_same"]
-            n_pos_exmps = torch.sum(labels_same_sup).item()
-            n_neg_exmps = labels_same_sup.size()[0] - n_pos_exmps
-            # pos_weight = 1. * (labels_same_sup.size()[0] - pos_exmps) / pos_exmps
-
-            pos_exmps = logits_same_sup[labels_same_sup]
-            neg_exmps = logits_same_sup[~labels_same_sup][
-                torch.randint(high=n_neg_exmps, size=(n_pos_exmps,)).long()
-            ]
-            same_exmps = torch.cat([pos_exmps, neg_exmps])
-            same_labels = torch.cat(
-                [
-                    labels_same_sup.new_ones(n_pos_exmps),
-                    labels_same_sup.new_zeros(n_pos_exmps),
-                ]
-            )
-
-            same_loss = torch.nn.BCEWithLogitsLoss()(same_exmps, same_labels.float())
+            same_loss = compute_binary_loss(logits_same_sup, labels_same_sup)
+            if "logits_sum9_sqz" in result_sup:
+                logits_sum9_sup = result_sup["logits_sum9_sqz"]
+                labels_sum9_sup = result_sup["labels_sum9"]
+                same_loss += compute_binary_loss(logits_sum9_sup, labels_sum9_sup)
         else:
             same_loss = 0
         loss = conf.rl_weight * rl_loss + sup_loss + conf.same_weight * same_loss
@@ -210,6 +215,11 @@ def main():
             conf.I,
             conf.G,
             conf.log_level,
+        )
+    elif conf.problem == "both":
+        model = BothNet().to(device)
+        real_logic = BothLogic(
+            conf.A_quant, conf.E, conf.T, conf.S, conf.I, conf.G, conf.log_level,
         )
 
     if config.conf.algorithm == "sgd":

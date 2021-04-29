@@ -144,3 +144,21 @@ class Sum9Net(SameNet):
         y1 = labels.repeat(n2)
         y2 = labels.unsqueeze(1).expand(n2, n2).reshape(-1)
         return y1 + y2 == 9
+
+
+# Note: This implementation is horribly inefficient. This is just for a quick experiment.
+class BothNet(nn.Module):
+    def __init__(self):
+        super(BothNet, self).__init__()
+        self.sameNet = SameNet()
+        self.sum9Net = Sum9Net()
+        # Share detector
+        self.sum9Net.detector = self.sameNet.detector
+
+    def forward(self, x, labels, writer, step, log_level):
+        resultsSame = self.sameNet.forward(x, labels, writer, step, log_level)
+        resultsSum9 = self.sum9Net.forward(x, labels, writer, step, log_level)
+        resultsSame["logits_sum9"] = resultsSum9["logits_same"]
+        resultsSame["logits_sum9_sqz"] = resultsSum9["logits_same_sqz"]
+        resultsSame["labels_sum9"] = resultsSum9["labels_same"]
+        return resultsSame
