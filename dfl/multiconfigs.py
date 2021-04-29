@@ -9,6 +9,7 @@ configs = {}
 #     SameConfig("P", "GG", "cross_entropy", rl_weight=10),
 #     SameConfig("G", "G", "min"),
 #     SameConfig("Y", "RY", "Y"),
+#     SameConfig("Y", "RY", "Y", p=1.5),
 #     SameConfig("Y", "RY", "Y", p=20.0),
 # ]
 
@@ -28,6 +29,7 @@ configs = {}
 #     SameConfig("P", "RC", "cross_entropy", rl_weight=10, alg="adam"),
 #     SameConfig("G", "KD", "min", alg="adam"),
 #     SameConfig("Y", "Y", "Y", alg="adam"),
+#     SameConfig("Y", "Y", "Y", alg="adam", p=1.5),
 #     SameConfig("Y", "Y", "Y", p=20.0, alg="adam"),
 # ]
 
@@ -43,6 +45,7 @@ configs = {}
 #     #     Sum9Config("P", "P", "RC", "cross_entropy", "prob_sum", rl_weight=10.0, alg="adam"),
 #     #     Sum9Config("Y", "Y", "Y", "Y", "Y", alg="adam"),
 #     #     Sum9Config("Y", "Y", "Y", "Y", "Y", alg="adam", p=0.5),
+#     #     Sum9Config("Y", "Y", "Y", "Y", "Y", alg="adam", p=1.5),
 #     #     Sum9Config("Y", "Y", "Y", "Y", "Y", alg="adam", p=20.0),
 #     #     Sum9Config("LK", "LK", "LK", "LK", "LK", alg="adam"),
 #     #     Sum9Config("LK", "LK", "LK", "mean", "LK", alg="adam"),
@@ -120,6 +123,7 @@ configs["implications"] = [
     SameConfig("Y", "KD", "cross_entropy", rl_weight=10.0),
     SameConfig("Y", "LK", "cross_entropy", rl_weight=10.0),
     SameConfig("Y", "RC", "cross_entropy", rl_weight=10.0),
+    SameConfig("Y", "Np", "cross_entropy", rl_weight=10.0),
     SameConfig("Y", "Y", "cross_entropy", rl_weight=10.0, ip=2.0),  # RERUN, WRONG TP
     SameConfig("Y", "Y", "cross_entropy", rl_weight=10.0, ip=1.5),
     SameConfig("Y", "Y", "cross_entropy", rl_weight=10.0, ip=20),  # RERUN, WRONG TP
@@ -173,17 +177,43 @@ configs["forall"] = [
     SameConfig("Y", "SP", "GME", rl_weight=10.0, ap=1.5),
     SameConfig("Y", "SP", "GME", rl_weight=10.0, ap=20),
     SameConfig("Y", "SP", "Y", rl_weight=10.0),
+    SameConfig("Y", "SP", "Y", rl_weight=10.0, ap=1.5),
     SameConfig("Y", "SP", "Y", rl_weight=10.0, ap=20),
     SameConfig("Y", "SP", "Np", rl_weight=10.0),
 ]
 
 configs["random"] = [
-    SameConfig("Y", "RY", "cross_entropy", rl_weight=10.0, ip=1.5),  # NAN
-    SameConfig("Y", "RY", "cross_entropy", rl_weight=10.0, ip=2.0),
-    SameConfig("Y", "RY", "cross_entropy", rl_weight=10.0, ip=20),
-    SameConfig("Y", "Y", "cross_entropy", rl_weight=10.0, ip=2.0),  # RERUN, WRONG TP
-    SameConfig("Y", "Y", "cross_entropy", rl_weight=10.0, ip=20),  # RERUN, WRONG TP
-    SameConfig("Y", "Y", "cross_entropy", rl_weight=10.0, ip=0.5),  # NAN! RERUN!
+    # SameConfig("Y", "RY", "cross_entropy", rl_weight=10.0, ip=1.5),  # NAN
+    # SameConfig("Y", "RY", "cross_entropy", rl_weight=10.0, ip=2.0),
+    # SameConfig("Y", "RY", "cross_entropy", rl_weight=10.0, ip=20),
+    # SameConfig("Y", "RY", "cross_entropy", rl_weight=10.0, ip=0.5),
+    # SameConfig("Y", "Y", "cross_entropy", rl_weight=10.0, ip=2.0),  # RERUN, WRONG TP
+    # SameConfig("Y", "Y", "cross_entropy", rl_weight=10.0, ip=20),  # RERUN, WRONG TP
+    # SameConfig("Y", "Y", "cross_entropy", rl_weight=10.0, ip=0.5),  # NAN! RERUN!
+    # Sum9Config("Y", "Y", "SP", "cross_entropy", "gmean", rl_weight=10.0, ep=2)
+    # SameConfig("Y", "Np", "cross_entropy", rl_weight=10.0),
+    # Sum9Config("Y", "Y", "Y", "Y", "Y", alg="adam", ep=1.5, tp=1.5),
+    # SameConfig("Y", "Y", "Y", alg="adam", tp=1.5, ap=1.5, ip=1.5),
+    # SameConfig("Y", "RY", "Y", alg="adam", tp=1.5, ap=1.5, ip=1.5),
+    # Sum9Config(
+    # "Y", "Y", "SP", "cross_entropy", "gmean", rl_weight=10.0, ep=1.5, alg="sgd"
+    # ),
+    SameConfig("Y", "SP", "Y", rl_weight=10.0, ap=1.5),
+]
+
+configs["s_experiments"] = [
+    SameConfig("Y", "SP", "cross_entropy", rl_weight=10.0, s=1.0),
+    SameConfig("Y", "SP", "cross_entropy", rl_weight=10.0, s=2.5),
+    SameConfig("Y", "SP", "cross_entropy", rl_weight=10.0, s=5),
+    SameConfig("Y", "SP", "cross_entropy", rl_weight=10.0, s=7.5),
+    SameConfig("Y", "SP", "cross_entropy", rl_weight=10.0, s=12.5),
+    SameConfig("Y", "SP", "cross_entropy", rl_weight=10.0, s=15.0),
+    SameConfig("Y", "SP", "cross_entropy", rl_weight=10.0, s=20.0),
+]
+
+configs["LK_rerun"] = [
+    SameConfig("LK", "LK", "LK"),
+    Sum9Config("LK", "LK", "LK", "LK", "LK"),
 ]
 
 for bConfig in configs[config.conf.multiconfig]:

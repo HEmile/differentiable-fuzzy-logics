@@ -10,7 +10,7 @@ import uuid
 
 class SameConfig:
     def __init__(
-        self, t, i, a_quant, rl_weight=1.0, ap=2.0, tp=1.5, ip=2.0, alg="adam"
+        self, t, i, a_quant, rl_weight=1.0, ap=2.0, tp=1.5, ip=2.0, alg="adam", s=9.0
     ):
         self.t = t
         self.i = i
@@ -18,6 +18,7 @@ class SameConfig:
         self.rl_weight = rl_weight
         self.tp = tp
         self.ap = ap
+        self.s = s
         self.ip = ip
         self.algorithm = alg
         self.lr = 0.01 if alg == "sgd" else 0.001
@@ -33,7 +34,7 @@ class Sum9Config:
         e,
         rl_weight=1.0,
         ep=1.5,
-        tp=2.0,
+        tp=1.5,
         alg="adam",
         lr=None,
         momentum=0.5,
@@ -140,6 +141,7 @@ class Config(object):
         self.ip = baseConfig.ip
         self.tp = baseConfig.tp
         self.ep = baseConfig.ap
+        self.s = baseConfig.s
         self.lr = baseConfig.lr
         self.algorithm = baseConfig.algorithm
         self.problem = "same"
