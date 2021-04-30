@@ -18,13 +18,17 @@ def lower_contra(I):
 
 def r_impl(I, DEBUG):
     def _r_impl(a, c):
-        r = torch.ones_like(a)
-        a2 = a[a > c]
-        c2 = c[a > c]
-        r[a > c] = I(a2, c2)
-        if DEBUG and (r != r).any():
-            print("nan i")
-        return r
+        # r = torch.ones_like(a)
+        cond = (a <= c).float()
+        # a2 = a[a > c]
+        # c2 = c[a > c]
+        # r[a > c] = I(a2, c2)
+        # if DEBUG and (r != r).any():
+        #     print("nan i")
+        imp = I(a, c)
+        # Find nans
+        imp[imp != imp] = 0.0
+        return cond + (1 - cond) * imp
 
     return _r_impl
 
@@ -39,6 +43,17 @@ def normalized_rc(a, c):
     tot_dMP = torch.sum(dMP)
     tot_dMT = torch.sum(dMT)
     return mu * c * dMP / tot_dMP + (1 - mu) * (1 - a) * dMT / tot_dMT
+
+
+def RY(ip):
+    def _RY(a, c):
+        consArg = (1 - c + eps) ** ip
+        antArg = (1 - a + eps) ** ip
+        diff = consArg - antArg + eps
+        exped = diff ** (1 / ip)
+        return 1 - exped
+
+    return r_impl(_RY, False)
 
 
 def createImplications(conf, DISJUNCTS):
@@ -60,19 +75,16 @@ def createImplications(conf, DISJUNCTS):
 
     # Nilpotent Minimum (Fodor)
     IMPLICATIONS["F"] = r_impl(lambda a, c: torch.max(1 - a, c), conf.debug)
+    IMPLICATIONS["Np"] = IMPLICATIONS["F"]
 
     # Yager based
     IMPLICATIONS["Y"] = lambda a, b: torch.clamp(
-        ((1 - a) ** conf.ip + b ** conf.ip + eps) ** (1 / conf.ip), max=1
+        ((1 - a + eps) ** conf.ip + (b + eps) ** conf.ip + eps) ** (1 / conf.ip), max=1
     )
     IMPLICATIONS["RMSE"] = lambda a, b: (
         1 / 2 * ((1 - a) ** conf.ip + b ** conf.ip + eps)
     ) ** (1 / conf.ip)
-    IMPLICATIONS["RY"] = r_impl(
-        lambda a, c: 1
-        - ((1 - c + eps) ** conf.ip - (1 - a + eps) ** conf.ip + eps) ** (1 / conf.ip),
-        conf.debug,
-    )
+    IMPLICATIONS["RY"] = RY(conf.ip)
 
     # Lukasiewicz
     IMPLICATIONS["LK"] = lambda a, c: torch.clamp(1 - a + c, max=1)

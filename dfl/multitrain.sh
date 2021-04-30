@@ -7,6 +7,6 @@
 module add cuda90
 
 source activate thesis
-export PYTHONPATH=/home/ekn274/mnist
+export PYTHONPATH=/home/ekn274/differentiable-fuzzy-logics
 
 python multirun.py "$@"

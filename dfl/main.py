@@ -4,8 +4,8 @@ import torch.optim as optim
 from tensorboardX import SummaryWriter
 import subprocess
 from dfl.dataset import get_loaders
-from dfl.model import SameNet
-from dfl.real_logic import RealLogic
+from dfl.model import SameNet, Sum9Net, BothNet
+from dfl.real_logic import RealLogic, Sum9Logic, BothLogic
 import dfl.config as config
 from dfl.config import conf, test_batch_size
 
@@ -19,6 +19,23 @@ def print_gpu_use():
     gpu_memory = [int(x) for x in result.strip().split("\n")]
     gpu_memory_map = dict(zip(range(len(gpu_memory)), gpu_memory))
     print(gpu_memory_map)
+
+
+def compute_binary_loss(logits, labels):
+    n_pos_exmps = torch.sum(labels).item()
+    n_neg_exmps = labels.size()[0] - n_pos_exmps
+    # pos_weight = 1. * (labels_same_sup.size()[0] - pos_exmps) / pos_exmps
+
+    pos_exmps = logits[labels]
+    neg_exmps = logits[~labels][
+        torch.randint(high=n_neg_exmps, size=(n_pos_exmps,)).long()
+    ]
+    same_exmps = torch.cat([pos_exmps, neg_exmps])
+    same_labels = torch.cat(
+        [labels.new_ones(n_pos_exmps), labels.new_zeros(n_pos_exmps),]
+    )
+
+    return torch.nn.BCEWithLogitsLoss()(same_exmps, same_labels.float())
 
 
 def train(
@@ -63,25 +80,14 @@ def train(
         else:
             rl_loss = 0
         if conf.same_weight > 0:
+            # Same is also used for sum9
             logits_same_sup = result_sup["logits_same_sqz"]
             labels_same_sup = result_sup["labels_same"]
-            n_pos_exmps = torch.sum(labels_same_sup).item()
-            n_neg_exmps = labels_same_sup.size()[0] - n_pos_exmps
-            # pos_weight = 1. * (labels_same_sup.size()[0] - pos_exmps) / pos_exmps
-
-            pos_exmps = logits_same_sup[labels_same_sup]
-            neg_exmps = logits_same_sup[~labels_same_sup][
-                torch.randint(high=n_neg_exmps, size=(n_pos_exmps,)).long()
-            ]
-            same_exmps = torch.cat([pos_exmps, neg_exmps])
-            same_labels = torch.cat(
-                [
-                    labels_same_sup.new_ones(n_pos_exmps),
-                    labels_same_sup.new_zeros(n_pos_exmps),
-                ]
-            )
-
-            same_loss = torch.nn.BCEWithLogitsLoss()(same_exmps, same_labels.float())
+            same_loss = compute_binary_loss(logits_same_sup, labels_same_sup)
+            if "logits_sum9_sqz" in result_sup:
+                logits_sum9_sup = result_sup["logits_sum9_sqz"]
+                labels_sum9_sup = result_sup["labels_sum9"]
+                same_loss += compute_binary_loss(logits_sum9_sup, labels_sum9_sup)
         else:
             same_loss = 0
         loss = conf.rl_weight * rl_loss + sup_loss + conf.same_weight * same_loss
@@ -189,12 +195,32 @@ def main():
     device = torch.device("cuda" if use_cuda else "cpu")
     print(device)
 
-    sup_loader, unsup_loader, test_loader = get_loaders(config.seed)
-
-    model = SameNet().to(device)
-    real_logic = RealLogic(
-        config.A_clause, conf.A_quant, conf.T, conf.I, conf.G, conf.log_level
+    sup_loader, unsup_loader, test_loader = get_loaders(
+        config.dataset_seed, config.conf.data_dir
     )
+
+    if conf.problem == "same":
+        model = SameNet().to(device)
+        real_logic = RealLogic(
+            config.A_clause, conf.A_quant, conf.T, conf.I, conf.G, conf.log_level
+        )
+    elif conf.problem == "sum9":
+        model = Sum9Net().to(device)
+        real_logic = Sum9Logic(
+            config.A_clause_sum9,
+            conf.A_quant,
+            conf.E,
+            conf.T,
+            conf.S,
+            conf.I,
+            conf.G,
+            conf.log_level,
+        )
+    elif conf.problem == "both":
+        model = BothNet().to(device)
+        real_logic = BothLogic(
+            conf.A_quant, conf.E, conf.T, conf.S, conf.I, conf.G, conf.log_level,
+        )
 
     if config.conf.algorithm == "sgd":
         optimizer = optim.SGD(
@@ -202,12 +228,12 @@ def main():
         )
     elif config.conf.algorithm == "adam":
         optimizer = optim.Adam(model.parameters(), lr=config.conf.lr)
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(name)
+    # for name, param in model.named_parameters():
+    #     if param.requires_grad:
+    #         print(name)
 
-    writer_train = SummaryWriter("tb_runs/" + conf.experiment_name + "/train")
-    writer_val = SummaryWriter("tb_runs/" + conf.experiment_name + "/val")
+    writer_train = SummaryWriter(conf.out_dir + "/" + conf.experiment_name + "/train")
+    writer_val = SummaryWriter(conf.out_dir + "/" + conf.experiment_name + "/val")
 
     unsup_enumerator = iter(unsup_loader)
     step = 0

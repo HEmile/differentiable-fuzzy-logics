@@ -4,12 +4,13 @@ import math
 
 # Nilpotent norm
 def _npmin(a, b):
-    r = torch.zeros_like(a)
-    c = a + b <= 1
-    a2 = a[c]
-    b2 = b.expand(a.size())[c]
-    r[c] = torch.min(a2, b2)
-    return r
+    c = (a + b <= 1).float()
+    return (1 - c) * torch.min(a, b)
+
+
+def _npmax(a, b):
+    c = (a + b >= 1).float()
+    return c + (1.0 - c) * torch.max(a, b)
 
 
 def createConjunctsDisjuncts(conf):
@@ -23,14 +24,16 @@ def createConjunctsDisjuncts(conf):
     CONJUNCTS["G"] = lambda a, b: torch.min(a, b)
     DISJUNCTS["G"] = lambda a, b: torch.max(a, b)
 
-    CONJUNCTS["Np"] = lambda a, b: _npmin(a, b)
-
+    CONJUNCTS["Np"] = _npmin
+    DISJUNCTS["Np"] = _npmax
     # Yager based
     CONJUNCTS["Y"] = lambda a, b: torch.clamp(
-        1 - ((1 - a) ** conf.tp + (1 - b) ** conf.tp + eps) ** (1 / conf.tp), min=0
+        1
+        - ((1 - a + eps) ** conf.tp + (1 - b + eps) ** conf.tp + eps) ** (1 / conf.tp),
+        min=0,
     )
     DISJUNCTS["Y"] = lambda a, b: torch.clamp(
-        (a ** conf.tp + b ** conf.tp + eps) ** (1 / conf.tp), max=1
+        ((a + eps) ** conf.tp + (b + eps) ** conf.tp + eps) ** (1 / conf.tp), max=1
     )
 
     CONJUNCTS["RMSE"] = lambda a, b: 1 - (
